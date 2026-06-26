@@ -46,18 +46,22 @@ static void direct_tests() {
 
     MemoryAllocator::check();
 
-    // Reuse: free p1, alloc same size — should land at same address.
+    // Reuse: free EVERYTHING (so the heap is one chunk again), then alloc the
+    // same shape. First-fit will hand back the same tail address.
+    //
+    // Note: freeing just one allocation while two others are still live does
+    // NOT guarantee re-use, because first-fit will pick whichever free node
+    // appears first in the address-sorted list — which is usually the big
+    // free remainder, not the small just-freed block.
     MemoryAllocator::free(p1);
-    void* p1b = MemoryAllocator::alloc(100);
-    check_bool("reuse after free", p1b == p1);
-
-    // Coalesce: free p1b and p2 (adjacent in our split scheme they should be)
-    // then alloc one big block.
-    MemoryAllocator::free(p1b);
-    MemoryAllocator::free(p3);
     MemoryAllocator::free(p2);
+    MemoryAllocator::free(p3);
     MemoryAllocator::check();
     check_bool("free restored full heap", MemoryAllocator::total_free_bytes() == free0);
+
+    void* p1b = MemoryAllocator::alloc(100);
+    check_bool("reuse after full free", p1b == p1);
+    MemoryAllocator::free(p1b);
 
     // free(NULL) is no-op.
     check_bool("free(NULL) == 0", MemoryAllocator::free(nullptr) == 0);
@@ -84,13 +88,15 @@ static void e2e_tests() {
 
     int r1 = mem_free(p1);
     check_bool("ecall mem_free(p1) == 0", r1 == 0);
-    void* p1b = mem_alloc(100);
-    check_bool("ecall reuse", p1b == p1);
-
-    mem_free(p1b);
     mem_free(p2);
     check_bool("ecall full free restored heap",
                MemoryAllocator::total_free_bytes() == free0);
+
+    // After the heap is one chunk again, first-fit will hand back the same
+    // tail address. (See note in direct_tests().)
+    void* p1b = mem_alloc(100);
+    check_bool("ecall reuse after full free", p1b == p1);
+    mem_free(p1b);
 
     // C++ new/delete (also goes through ecall).
     struct Foo { uint64 x[8]; virtual ~Foo() {} };
@@ -118,7 +124,13 @@ static void stress_tests() {
         allocated++;
     }
     kputs("  allocated 4KB blocks: "); kputdec(allocated); kputc('\n');
-    check_bool("at least 8 x 4KB fit", allocated >= 8);
+    check_bool("at least 64 x 4KB fit (heap is ~128MB)", allocated == N);
+    // Successive splits come off the tail of the same free chunk, so each
+    // returned pointer is below the previous one.
+    bool descending = true;
+    for (int i = 1; i < allocated; i++)
+        if (buf[i] >= buf[i-1]) { descending = false; break; }
+    check_bool("stress: 4KB allocs are address-descending", descending);
 
     for (int i = 0; i < allocated; i++) mem_free(buf[i]);
     MemoryAllocator::check();

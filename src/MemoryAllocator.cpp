@@ -5,9 +5,6 @@ MemoryAllocator::Node* MemoryAllocator::head = nullptr;
 
 static inline uint64  up  (uint64 v, uint64 a) { return (v + a - 1) & ~(a - 1); }
 static inline uint64  down(uint64 v, uint64 a) { return v & ~(a - 1); }
-static inline uchar*  end_of(MemoryAllocator::Node* n) {
-    return (uchar*)n + n->blocks * MEM_BLOCK_SIZE;
-}
 
 void MemoryAllocator::init() {
     uint64 s = up  ((uint64)HEAP_START_ADDR, MEM_BLOCK_SIZE);

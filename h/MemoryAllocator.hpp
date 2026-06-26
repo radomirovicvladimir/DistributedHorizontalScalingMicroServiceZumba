@@ -17,6 +17,9 @@ private:
     struct Node { Node* next; size_t blocks; };   // 16B; doubles as in-use header
     static_assert(sizeof(Node) == 16, "Node must be 16 bytes");
     static Node* head;
+    static uchar* end_of(Node* n) {
+        return (uchar*)n + n->blocks * MEM_BLOCK_SIZE;
+    }
 
     MemoryAllocator() = delete;
 };

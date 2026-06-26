@@ -1,0 +1,2680 @@
+GAS LISTING /tmp/ccbGazKg.s 			page 1
+
+
+   1              		.file	"main.cpp"
+   2              		.option nopic
+   3              		.option norelax
+   4              		.attribute arch, "rv64i2p0_m2p0_a2p0"
+   5              		.attribute unaligned_access, 0
+   6              		.attribute stack_align, 16
+   7              		.text
+   8              	.Ltext0:
+   9              		.align	2
+  11              	_ZL7in_heapPv:
+  12              	.LFB1:
+  13              		.file 1 "src/main.cpp"
+   1:src/main.cpp  **** #include "../lib/hw.h"
+   2:src/main.cpp  **** #include "../h/debug.hpp"
+   3:src/main.cpp  **** #include "../h/riscv.hpp"
+   4:src/main.cpp  **** #include "../h/MemoryAllocator.hpp"
+   5:src/main.cpp  **** #include "../h/syscall_c.h"
+   6:src/main.cpp  **** 
+   7:src/main.cpp  **** // Trap entry point — defined in trap_entry.S.
+   8:src/main.cpp  **** extern "C" void trap_entry();
+   9:src/main.cpp  **** 
+  10:src/main.cpp  **** // ---- test helpers ---------------------------------------------------------
+  11:src/main.cpp  **** 
+  12:src/main.cpp  **** static int tests_run = 0;
+  13:src/main.cpp  **** static int tests_failed = 0;
+  14:src/main.cpp  **** 
+  15:src/main.cpp  **** static void check_bool(const char* name, bool ok) {
+  16:src/main.cpp  ****     tests_run++;
+  17:src/main.cpp  ****     kputs(ok ? "  [ OK ] " : "  [FAIL] ");
+  18:src/main.cpp  ****     kputs(name);
+  19:src/main.cpp  ****     kputc('\n');
+  20:src/main.cpp  ****     if (!ok) tests_failed++;
+  21:src/main.cpp  **** }
+  22:src/main.cpp  **** 
+  23:src/main.cpp  **** static bool in_heap(void* p) {
+  14              		.loc 1 23 30
+  15              		.cfi_startproc
+  16              	.LVL0:
+  17 0000 130101FF 		addi	sp,sp,-16
+  18              		.cfi_def_cfa_offset 16
+  19 0004 23348100 		sd	s0,8(sp)
+  20              		.cfi_offset 8, -8
+  21 0008 13040101 		addi	s0,sp,16
+  22              		.cfi_def_cfa 8, 0
+  24:src/main.cpp  ****     return p != nullptr &&
+  23              		.loc 1 24 5
+  25:src/main.cpp  ****            (uint64)p >= (uint64)HEAP_START_ADDR &&
+  24              		.loc 1 25 49 is_stmt 0
+  25 000c 63020502 		beqz	a0,.L3
+  26              		.loc 1 25 22 discriminator 1
+  27 0010 97070000 		ld	a5,HEAP_START_ADDR
+  27      83B70700 
+  24:src/main.cpp  ****     return p != nullptr &&
+  28              		.loc 1 24 25 discriminator 1
+  29 0018 6360F502 		bltu	a0,a5,.L4
+  26:src/main.cpp  ****            (uint64)p <  (uint64)HEAP_END_ADDR;
+  30              		.loc 1 26 22 discriminator 4
+GAS LISTING /tmp/ccbGazKg.s 			page 2
+
+
+  31 001c 97070000 		ld	a5,HEAP_END_ADDR
+  31      83B70700 
+  25:src/main.cpp  ****            (uint64)p >= (uint64)HEAP_START_ADDR &&
+  32              		.loc 1 25 49 discriminator 4
+  33 0024 6362F502 		bltu	a0,a5,.L5
+  25:src/main.cpp  ****            (uint64)p >= (uint64)HEAP_START_ADDR &&
+  34              		.loc 1 25 49
+  35 0028 13050000 		li	a0,0
+  36              	.LVL1:
+  37 002c 6F000001 		j	.L2
+  38              	.LVL2:
+  39              	.L3:
+  40 0030 13050000 		li	a0,0
+  41              	.LVL3:
+  42 0034 6F008000 		j	.L2
+  43              	.LVL4:
+  44              	.L4:
+  45 0038 13050000 		li	a0,0
+  46              	.LVL5:
+  47              	.L2:
+  27:src/main.cpp  **** }
+  48              		.loc 1 27 1
+  49 003c 03348100 		ld	s0,8(sp)
+  50              		.cfi_remember_state
+  51              		.cfi_restore 8
+  52              		.cfi_def_cfa 2, 16
+  53 0040 13010101 		addi	sp,sp,16
+  54              		.cfi_def_cfa_offset 0
+  55 0044 67800000 		jr	ra
+  56              	.LVL6:
+  57              	.L5:
+  58              		.cfi_restore_state
+  25:src/main.cpp  ****            (uint64)p >= (uint64)HEAP_START_ADDR &&
+  59              		.loc 1 25 49
+  60 0048 13051000 		li	a0,1
+  61              	.LVL7:
+  62 004c 6FF01FFF 		j	.L2
+  63              		.cfi_endproc
+  64              	.LFE1:
+  66              		.align	2
+  68              	_ZZL9e2e_testsvEN3FooD2Ev:
+  69              	.LFB5:
+  28:src/main.cpp  **** 
+  29:src/main.cpp  **** // ---- direct-call tests (no trap) -----------------------------------------
+  30:src/main.cpp  **** 
+  31:src/main.cpp  **** static void direct_tests() {
+  32:src/main.cpp  ****     kputs("\n-- direct (MemoryAllocator::*) --\n");
+  33:src/main.cpp  **** 
+  34:src/main.cpp  ****     MemoryAllocator::check();
+  35:src/main.cpp  ****     size_t free0 = MemoryAllocator::total_free_bytes();
+  36:src/main.cpp  **** 
+  37:src/main.cpp  ****     void* p1 = MemoryAllocator::alloc(100);
+  38:src/main.cpp  ****     void* p2 = MemoryAllocator::alloc(4096);
+  39:src/main.cpp  ****     void* p3 = MemoryAllocator::alloc(1);
+  40:src/main.cpp  ****     check_bool("alloc(100) in heap",  in_heap(p1));
+  41:src/main.cpp  ****     check_bool("alloc(4096) in heap", in_heap(p2));
+  42:src/main.cpp  ****     check_bool("alloc(1) in heap",    in_heap(p3));
+GAS LISTING /tmp/ccbGazKg.s 			page 3
+
+
+  43:src/main.cpp  ****     check_bool("alloc 16-aligned p1", ((uint64)p1 & 0xF) == 0);
+  44:src/main.cpp  ****     check_bool("alloc 16-aligned p2", ((uint64)p2 & 0xF) == 0);
+  45:src/main.cpp  ****     check_bool("alloc 16-aligned p3", ((uint64)p3 & 0xF) == 0);
+  46:src/main.cpp  **** 
+  47:src/main.cpp  ****     MemoryAllocator::check();
+  48:src/main.cpp  **** 
+  49:src/main.cpp  ****     // Reuse: free p1, alloc same size — should land at same address.
+  50:src/main.cpp  ****     MemoryAllocator::free(p1);
+  51:src/main.cpp  ****     void* p1b = MemoryAllocator::alloc(100);
+  52:src/main.cpp  ****     check_bool("reuse after free", p1b == p1);
+  53:src/main.cpp  **** 
+  54:src/main.cpp  ****     // Coalesce: free p1b and p2 (adjacent in our split scheme they should be)
+  55:src/main.cpp  ****     // then alloc one big block.
+  56:src/main.cpp  ****     MemoryAllocator::free(p1b);
+  57:src/main.cpp  ****     MemoryAllocator::free(p3);
+  58:src/main.cpp  ****     MemoryAllocator::free(p2);
+  59:src/main.cpp  ****     MemoryAllocator::check();
+  60:src/main.cpp  ****     check_bool("free restored full heap", MemoryAllocator::total_free_bytes() == free0);
+  61:src/main.cpp  **** 
+  62:src/main.cpp  ****     // free(NULL) is no-op.
+  63:src/main.cpp  ****     check_bool("free(NULL) == 0", MemoryAllocator::free(nullptr) == 0);
+  64:src/main.cpp  **** 
+  65:src/main.cpp  ****     // Bogus free is rejected.
+  66:src/main.cpp  ****     check_bool("free(bogus) == -1",
+  67:src/main.cpp  ****                MemoryAllocator::free((void*)0xdeadbeefUL) == -1);
+  68:src/main.cpp  **** 
+  69:src/main.cpp  ****     // Zero alloc.
+  70:src/main.cpp  ****     check_bool("alloc(0) == NULL", MemoryAllocator::alloc(0) == nullptr);
+  71:src/main.cpp  **** }
+  72:src/main.cpp  **** 
+  73:src/main.cpp  **** // ---- e2e tests (through ecall) -------------------------------------------
+  74:src/main.cpp  **** 
+  75:src/main.cpp  **** static void e2e_tests() {
+  76:src/main.cpp  ****     kputs("\n-- e2e (mem_alloc / mem_free via ecall) --\n");
+  77:src/main.cpp  **** 
+  78:src/main.cpp  ****     size_t free0 = MemoryAllocator::total_free_bytes();
+  79:src/main.cpp  **** 
+  80:src/main.cpp  ****     void* p1 = mem_alloc(100);
+  81:src/main.cpp  ****     void* p2 = mem_alloc(4096);
+  82:src/main.cpp  ****     check_bool("ecall mem_alloc(100)",  in_heap(p1));
+  83:src/main.cpp  ****     check_bool("ecall mem_alloc(4096)", in_heap(p2));
+  84:src/main.cpp  **** 
+  85:src/main.cpp  ****     int r1 = mem_free(p1);
+  86:src/main.cpp  ****     check_bool("ecall mem_free(p1) == 0", r1 == 0);
+  87:src/main.cpp  ****     void* p1b = mem_alloc(100);
+  88:src/main.cpp  ****     check_bool("ecall reuse", p1b == p1);
+  89:src/main.cpp  **** 
+  90:src/main.cpp  ****     mem_free(p1b);
+  91:src/main.cpp  ****     mem_free(p2);
+  92:src/main.cpp  ****     check_bool("ecall full free restored heap",
+  93:src/main.cpp  ****                MemoryAllocator::total_free_bytes() == free0);
+  94:src/main.cpp  **** 
+  95:src/main.cpp  ****     // C++ new/delete (also goes through ecall).
+  96:src/main.cpp  ****     struct Foo { uint64 x[8]; virtual ~Foo() {} };
+  70              		.loc 1 96 39 is_stmt 1
+  71              		.cfi_startproc
+  72              	.LVL8:
+GAS LISTING /tmp/ccbGazKg.s 			page 4
+
+
+  73 0050 130101FF 		addi	sp,sp,-16
+  74              		.cfi_def_cfa_offset 16
+  75 0054 23348100 		sd	s0,8(sp)
+  76              		.cfi_offset 8, -8
+  77 0058 13040101 		addi	s0,sp,16
+  78              		.cfi_def_cfa 8, 0
+  79              		.loc 1 96 47 is_stmt 0
+  80 005c 03348100 		ld	s0,8(sp)
+  81              		.cfi_restore 8
+  82              		.cfi_def_cfa 2, 16
+  83 0060 13010101 		addi	sp,sp,16
+  84              		.cfi_def_cfa_offset 0
+  85 0064 67800000 		jr	ra
+  86              		.cfi_endproc
+  87              	.LFE5:
+  89              		.set	_ZZL9e2e_testsvEN3FooD1Ev,_ZZL9e2e_testsvEN3FooD2Ev
+  90              		.section	.rodata.str1.8,"aMS",@progbits,1
+  91              		.align	3
+  92              	.LC0:
+  93 0000 20205B46 		.string	"  [FAIL] "
+  93      41494C5D 
+  93      2000
+  94 000a 00000000 		.align	3
+  94      0000
+  95              	.LC1:
+  96 0010 20205B20 		.string	"  [ OK ] "
+  96      4F4B205D 
+  96      2000
+  97              		.text
+  98              		.align	2
+ 100              	_ZL10check_boolPKcb:
+ 101              	.LFB0:
+  15:src/main.cpp  ****     tests_run++;
+ 102              		.loc 1 15 51 is_stmt 1
+ 103              		.cfi_startproc
+ 104              	.LVL9:
+ 105 0068 130101FE 		addi	sp,sp,-32
+ 106              		.cfi_def_cfa_offset 32
+ 107 006c 233C1100 		sd	ra,24(sp)
+ 108 0070 23388100 		sd	s0,16(sp)
+ 109 0074 23349100 		sd	s1,8(sp)
+ 110 0078 23302101 		sd	s2,0(sp)
+ 111              		.cfi_offset 1, -8
+ 112              		.cfi_offset 8, -16
+ 113              		.cfi_offset 9, -24
+ 114              		.cfi_offset 18, -32
+ 115 007c 13040102 		addi	s0,sp,32
+ 116              		.cfi_def_cfa 8, 0
+ 117 0080 13090500 		mv	s2,a0
+ 118 0084 93840500 		mv	s1,a1
+  16:src/main.cpp  ****     kputs(ok ? "  [ OK ] " : "  [FAIL] ");
+ 119              		.loc 1 16 5
+  16:src/main.cpp  ****     kputs(ok ? "  [ OK ] " : "  [FAIL] ");
+ 120              		.loc 1 16 14 is_stmt 0
+ 121 0088 17070000 		lla	a4,_ZL9tests_run
+ 121      13070700 
+ 122 0090 83270700 		lw	a5,0(a4)
+GAS LISTING /tmp/ccbGazKg.s 			page 5
+
+
+ 123 0094 9B871700 		addiw	a5,a5,1
+ 124 0098 2320F700 		sw	a5,0(a4)
+  17:src/main.cpp  ****     kputs(name);
+ 125              		.loc 1 17 5 is_stmt 1
+  17:src/main.cpp  ****     kputs(name);
+ 126              		.loc 1 17 10 is_stmt 0
+ 127 009c 638E0504 		beqz	a1,.L12
+ 128 00a0 17050000 		lla	a0,.LC1
+ 128      13050500 
+ 129              	.LVL10:
+ 130              	.L10:
+  17:src/main.cpp  ****     kputs(name);
+ 131              		.loc 1 17 10 discriminator 4
+ 132 00a8 97000000 		call	kputs
+ 132      E7800000 
+ 133              	.LVL11:
+  18:src/main.cpp  ****     kputc('\n');
+ 134              		.loc 1 18 5 is_stmt 1 discriminator 4
+  18:src/main.cpp  ****     kputc('\n');
+ 135              		.loc 1 18 10 is_stmt 0 discriminator 4
+ 136 00b0 13050900 		mv	a0,s2
+ 137 00b4 97000000 		call	kputs
+ 137      E7800000 
+ 138              	.LVL12:
+  19:src/main.cpp  ****     if (!ok) tests_failed++;
+ 139              		.loc 1 19 5 is_stmt 1 discriminator 4
+  19:src/main.cpp  ****     if (!ok) tests_failed++;
+ 140              		.loc 1 19 10 is_stmt 0 discriminator 4
+ 141 00bc 1305A000 		li	a0,10
+ 142 00c0 97000000 		call	kputc
+ 142      E7800000 
+ 143              	.LVL13:
+  20:src/main.cpp  **** }
+ 144              		.loc 1 20 5 is_stmt 1 discriminator 4
+ 145 00c8 639C0400 		bnez	s1,.L9
+  20:src/main.cpp  **** }
+ 146              		.loc 1 20 14 discriminator 1
+  20:src/main.cpp  **** }
+ 147              		.loc 1 20 26 is_stmt 0 discriminator 1
+ 148 00cc 17070000 		lla	a4,_ZL12tests_failed
+ 148      13070700 
+ 149 00d4 83270700 		lw	a5,0(a4)
+ 150 00d8 9B871700 		addiw	a5,a5,1
+ 151 00dc 2320F700 		sw	a5,0(a4)
+ 152              	.L9:
+  21:src/main.cpp  **** 
+ 153              		.loc 1 21 1
+ 154 00e0 83308101 		ld	ra,24(sp)
+ 155              		.cfi_remember_state
+ 156              		.cfi_restore 1
+ 157 00e4 03340101 		ld	s0,16(sp)
+ 158              		.cfi_restore 8
+ 159              		.cfi_def_cfa 2, 32
+ 160 00e8 83348100 		ld	s1,8(sp)
+ 161              		.cfi_restore 9
+ 162 00ec 03390100 		ld	s2,0(sp)
+ 163              		.cfi_restore 18
+GAS LISTING /tmp/ccbGazKg.s 			page 6
+
+
+ 164              	.LVL14:
+ 165 00f0 13010102 		addi	sp,sp,32
+ 166              		.cfi_def_cfa_offset 0
+ 167 00f4 67800000 		jr	ra
+ 168              	.LVL15:
+ 169              	.L12:
+ 170              		.cfi_restore_state
+  17:src/main.cpp  ****     kputs(name);
+ 171              		.loc 1 17 10
+ 172 00f8 17050000 		lla	a0,.LC0
+ 172      13050500 
+ 173              	.LVL16:
+ 174 0100 6FF09FFA 		j	.L10
+ 175              		.cfi_endproc
+ 176              	.LFE0:
+ 178              		.section	.rodata.str1.8
+ 179 001a 00000000 		.align	3
+ 179      0000
+ 180              	.LC2:
+ 181 0020 0A2D2D20 		.string	"\n-- direct (MemoryAllocator::*) --\n"
+ 181      64697265 
+ 181      63742028 
+ 181      4D656D6F 
+ 181      7279416C 
+ 182 0044 00000000 		.align	3
+ 183              	.LC3:
+ 184 0048 616C6C6F 		.string	"alloc(100) in heap"
+ 184      63283130 
+ 184      30292069 
+ 184      6E206865 
+ 184      617000
+ 185 005b 00000000 		.align	3
+ 185      00
+ 186              	.LC4:
+ 187 0060 616C6C6F 		.string	"alloc(4096) in heap"
+ 187      63283430 
+ 187      39362920 
+ 187      696E2068 
+ 187      65617000 
+ 188 0074 00000000 		.align	3
+ 189              	.LC5:
+ 190 0078 616C6C6F 		.string	"alloc(1) in heap"
+ 190      63283129 
+ 190      20696E20 
+ 190      68656170 
+ 190      00
+ 191 0089 00000000 		.align	3
+ 191      000000
+ 192              	.LC6:
+ 193 0090 616C6C6F 		.string	"alloc 16-aligned p1"
+ 193      63203136 
+ 193      2D616C69 
+ 193      676E6564 
+ 193      20703100 
+ 194 00a4 00000000 		.align	3
+ 195              	.LC7:
+ 196 00a8 616C6C6F 		.string	"alloc 16-aligned p2"
+GAS LISTING /tmp/ccbGazKg.s 			page 7
+
+
+ 196      63203136 
+ 196      2D616C69 
+ 196      676E6564 
+ 196      20703200 
+ 197 00bc 00000000 		.align	3
+ 198              	.LC8:
+ 199 00c0 616C6C6F 		.string	"alloc 16-aligned p3"
+ 199      63203136 
+ 199      2D616C69 
+ 199      676E6564 
+ 199      20703300 
+ 200 00d4 00000000 		.align	3
+ 201              	.LC9:
+ 202 00d8 72657573 		.string	"reuse after free"
+ 202      65206166 
+ 202      74657220 
+ 202      66726565 
+ 202      00
+ 203 00e9 00000000 		.align	3
+ 203      000000
+ 204              	.LC10:
+ 205 00f0 66726565 		.string	"free restored full heap"
+ 205      20726573 
+ 205      746F7265 
+ 205      64206675 
+ 205      6C6C2068 
+ 206              		.align	3
+ 207              	.LC11:
+ 208 0108 66726565 		.string	"free(NULL) == 0"
+ 208      284E554C 
+ 208      4C29203D 
+ 208      3D203000 
+ 209              		.align	3
+ 210              	.LC12:
+ 211 0118 66726565 		.string	"free(bogus) == -1"
+ 211      28626F67 
+ 211      75732920 
+ 211      3D3D202D 
+ 211      3100
+ 212 012a 00000000 		.align	3
+ 212      0000
+ 213              	.LC13:
+ 214 0130 616C6C6F 		.string	"alloc(0) == NULL"
+ 214      63283029 
+ 214      203D3D20 
+ 214      4E554C4C 
+ 214      00
+ 215              		.text
+ 216              		.align	2
+ 218              	_ZL12direct_testsv:
+ 219              	.LFB2:
+  31:src/main.cpp  ****     kputs("\n-- direct (MemoryAllocator::*) --\n");
+ 220              		.loc 1 31 28 is_stmt 1
+ 221              		.cfi_startproc
+ 222 0104 130101FC 		addi	sp,sp,-64
+ 223              		.cfi_def_cfa_offset 64
+ 224 0108 233C1102 		sd	ra,56(sp)
+GAS LISTING /tmp/ccbGazKg.s 			page 8
+
+
+ 225 010c 23388102 		sd	s0,48(sp)
+ 226 0110 23349102 		sd	s1,40(sp)
+ 227 0114 23302103 		sd	s2,32(sp)
+ 228 0118 233C3101 		sd	s3,24(sp)
+ 229 011c 23384101 		sd	s4,16(sp)
+ 230 0120 23345101 		sd	s5,8(sp)
+ 231              		.cfi_offset 1, -8
+ 232              		.cfi_offset 8, -16
+ 233              		.cfi_offset 9, -24
+ 234              		.cfi_offset 18, -32
+ 235              		.cfi_offset 19, -40
+ 236              		.cfi_offset 20, -48
+ 237              		.cfi_offset 21, -56
+ 238 0124 13040104 		addi	s0,sp,64
+ 239              		.cfi_def_cfa 8, 0
+  32:src/main.cpp  **** 
+ 240              		.loc 1 32 5
+  32:src/main.cpp  **** 
+ 241              		.loc 1 32 10 is_stmt 0
+ 242 0128 17050000 		lla	a0,.LC2
+ 242      13050500 
+ 243 0130 97000000 		call	kputs
+ 243      E7800000 
+ 244              	.LVL17:
+  34:src/main.cpp  ****     size_t free0 = MemoryAllocator::total_free_bytes();
+ 245              		.loc 1 34 5 is_stmt 1
+  34:src/main.cpp  ****     size_t free0 = MemoryAllocator::total_free_bytes();
+ 246              		.loc 1 34 27 is_stmt 0
+ 247 0138 97000000 		call	_ZN15MemoryAllocator5checkEv
+ 247      E7800000 
+ 248              	.LVL18:
+  35:src/main.cpp  **** 
+ 249              		.loc 1 35 5 is_stmt 1
+  35:src/main.cpp  **** 
+ 250              		.loc 1 35 53 is_stmt 0
+ 251 0140 97000000 		call	_ZN15MemoryAllocator16total_free_bytesEv
+ 251      E7800000 
+ 252              	.LVL19:
+ 253 0148 13090500 		mv	s2,a0
+ 254              	.LVL20:
+  37:src/main.cpp  ****     void* p2 = MemoryAllocator::alloc(4096);
+ 255              		.loc 1 37 5 is_stmt 1
+  37:src/main.cpp  ****     void* p2 = MemoryAllocator::alloc(4096);
+ 256              		.loc 1 37 38 is_stmt 0
+ 257 014c 13054006 		li	a0,100
+ 258              	.LVL21:
+ 259 0150 97000000 		call	_ZN15MemoryAllocator5allocEm
+ 259      E7800000 
+ 260              	.LVL22:
+ 261 0158 93040500 		mv	s1,a0
+ 262              	.LVL23:
+  38:src/main.cpp  ****     void* p3 = MemoryAllocator::alloc(1);
+ 263              		.loc 1 38 5 is_stmt 1
+  38:src/main.cpp  ****     void* p3 = MemoryAllocator::alloc(1);
+ 264              		.loc 1 38 38 is_stmt 0
+ 265 015c 37150000 		li	a0,4096
+ 266 0160 97000000 		call	_ZN15MemoryAllocator5allocEm
+GAS LISTING /tmp/ccbGazKg.s 			page 9
+
+
+ 266      E7800000 
+ 267              	.LVL24:
+ 268 0168 93090500 		mv	s3,a0
+ 269              	.LVL25:
+  39:src/main.cpp  ****     check_bool("alloc(100) in heap",  in_heap(p1));
+ 270              		.loc 1 39 5 is_stmt 1
+  39:src/main.cpp  ****     check_bool("alloc(100) in heap",  in_heap(p1));
+ 271              		.loc 1 39 38 is_stmt 0
+ 272 016c 13051000 		li	a0,1
+ 273              	.LVL26:
+ 274 0170 97000000 		call	_ZN15MemoryAllocator5allocEm
+ 274      E7800000 
+ 275              	.LVL27:
+ 276 0178 130A0500 		mv	s4,a0
+ 277              	.LVL28:
+  40:src/main.cpp  ****     check_bool("alloc(4096) in heap", in_heap(p2));
+ 278              		.loc 1 40 5 is_stmt 1
+  40:src/main.cpp  ****     check_bool("alloc(4096) in heap", in_heap(p2));
+ 279              		.loc 1 40 15 is_stmt 0
+ 280 017c 13850400 		mv	a0,s1
+ 281              	.LVL29:
+ 282 0180 97000000 		call	_ZL7in_heapPv
+ 282      E7800000 
+ 283              	.LVL30:
+ 284 0188 93050500 		mv	a1,a0
+ 285 018c 17050000 		lla	a0,.LC3
+ 285      13050500 
+ 286 0194 97000000 		call	_ZL10check_boolPKcb
+ 286      E7800000 
+ 287              	.LVL31:
+  41:src/main.cpp  ****     check_bool("alloc(1) in heap",    in_heap(p3));
+ 288              		.loc 1 41 5 is_stmt 1
+  41:src/main.cpp  ****     check_bool("alloc(1) in heap",    in_heap(p3));
+ 289              		.loc 1 41 15 is_stmt 0
+ 290 019c 13850900 		mv	a0,s3
+ 291 01a0 97000000 		call	_ZL7in_heapPv
+ 291      E7800000 
+ 292              	.LVL32:
+ 293 01a8 93050500 		mv	a1,a0
+ 294 01ac 17050000 		lla	a0,.LC4
+ 294      13050500 
+ 295 01b4 97000000 		call	_ZL10check_boolPKcb
+ 295      E7800000 
+ 296              	.LVL33:
+  42:src/main.cpp  ****     check_bool("alloc 16-aligned p1", ((uint64)p1 & 0xF) == 0);
+ 297              		.loc 1 42 5 is_stmt 1
+  42:src/main.cpp  ****     check_bool("alloc 16-aligned p1", ((uint64)p1 & 0xF) == 0);
+ 298              		.loc 1 42 15 is_stmt 0
+ 299 01bc 13050A00 		mv	a0,s4
+ 300 01c0 97000000 		call	_ZL7in_heapPv
+ 300      E7800000 
+ 301              	.LVL34:
+ 302 01c8 93050500 		mv	a1,a0
+ 303 01cc 17050000 		lla	a0,.LC5
+ 303      13050500 
+ 304 01d4 97000000 		call	_ZL10check_boolPKcb
+ 304      E7800000 
+GAS LISTING /tmp/ccbGazKg.s 			page 10
+
+
+ 305              	.LVL35:
+  43:src/main.cpp  ****     check_bool("alloc 16-aligned p2", ((uint64)p2 & 0xF) == 0);
+ 306              		.loc 1 43 5 is_stmt 1
+  43:src/main.cpp  ****     check_bool("alloc 16-aligned p2", ((uint64)p2 & 0xF) == 0);
+ 307              		.loc 1 43 51 is_stmt 0
+ 308 01dc 93F5F400 		andi	a1,s1,15
+  43:src/main.cpp  ****     check_bool("alloc 16-aligned p2", ((uint64)p2 & 0xF) == 0);
+ 309              		.loc 1 43 15
+ 310 01e0 93B51500 		seqz	a1,a1
+ 311 01e4 17050000 		lla	a0,.LC6
+ 311      13050500 
+ 312 01ec 97000000 		call	_ZL10check_boolPKcb
+ 312      E7800000 
+ 313              	.LVL36:
+  44:src/main.cpp  ****     check_bool("alloc 16-aligned p3", ((uint64)p3 & 0xF) == 0);
+ 314              		.loc 1 44 5 is_stmt 1
+  44:src/main.cpp  ****     check_bool("alloc 16-aligned p3", ((uint64)p3 & 0xF) == 0);
+ 315              		.loc 1 44 51 is_stmt 0
+ 316 01f4 93F5F900 		andi	a1,s3,15
+  44:src/main.cpp  ****     check_bool("alloc 16-aligned p3", ((uint64)p3 & 0xF) == 0);
+ 317              		.loc 1 44 15
+ 318 01f8 93B51500 		seqz	a1,a1
+ 319 01fc 17050000 		lla	a0,.LC7
+ 319      13050500 
+ 320 0204 97000000 		call	_ZL10check_boolPKcb
+ 320      E7800000 
+ 321              	.LVL37:
+  45:src/main.cpp  **** 
+ 322              		.loc 1 45 5 is_stmt 1
+  45:src/main.cpp  **** 
+ 323              		.loc 1 45 51 is_stmt 0
+ 324 020c 9375FA00 		andi	a1,s4,15
+  45:src/main.cpp  **** 
+ 325              		.loc 1 45 15
+ 326 0210 93B51500 		seqz	a1,a1
+ 327 0214 17050000 		lla	a0,.LC8
+ 327      13050500 
+ 328 021c 97000000 		call	_ZL10check_boolPKcb
+ 328      E7800000 
+ 329              	.LVL38:
+  47:src/main.cpp  **** 
+ 330              		.loc 1 47 5 is_stmt 1
+  47:src/main.cpp  **** 
+ 331              		.loc 1 47 27 is_stmt 0
+ 332 0224 97000000 		call	_ZN15MemoryAllocator5checkEv
+ 332      E7800000 
+ 333              	.LVL39:
+  50:src/main.cpp  ****     void* p1b = MemoryAllocator::alloc(100);
+ 334              		.loc 1 50 5 is_stmt 1
+  50:src/main.cpp  ****     void* p1b = MemoryAllocator::alloc(100);
+ 335              		.loc 1 50 26 is_stmt 0
+ 336 022c 13850400 		mv	a0,s1
+ 337 0230 97000000 		call	_ZN15MemoryAllocator4freeEPv
+ 337      E7800000 
+ 338              	.LVL40:
+  51:src/main.cpp  ****     check_bool("reuse after free", p1b == p1);
+ 339              		.loc 1 51 5 is_stmt 1
+GAS LISTING /tmp/ccbGazKg.s 			page 11
+
+
+  51:src/main.cpp  ****     check_bool("reuse after free", p1b == p1);
+ 340              		.loc 1 51 39 is_stmt 0
+ 341 0238 13054006 		li	a0,100
+ 342 023c 97000000 		call	_ZN15MemoryAllocator5allocEm
+ 342      E7800000 
+ 343              	.LVL41:
+ 344 0244 930A0500 		mv	s5,a0
+ 345              	.LVL42:
+  52:src/main.cpp  **** 
+ 346              		.loc 1 52 5 is_stmt 1
+  52:src/main.cpp  **** 
+ 347              		.loc 1 52 15 is_stmt 0
+ 348 0248 B385A440 		sub	a1,s1,a0
+ 349 024c 93B51500 		seqz	a1,a1
+ 350 0250 17050000 		lla	a0,.LC9
+ 350      13050500 
+ 351              	.LVL43:
+ 352 0258 97000000 		call	_ZL10check_boolPKcb
+ 352      E7800000 
+ 353              	.LVL44:
+  56:src/main.cpp  ****     MemoryAllocator::free(p3);
+ 354              		.loc 1 56 5 is_stmt 1
+  56:src/main.cpp  ****     MemoryAllocator::free(p3);
+ 355              		.loc 1 56 26 is_stmt 0
+ 356 0260 13850A00 		mv	a0,s5
+ 357 0264 97000000 		call	_ZN15MemoryAllocator4freeEPv
+ 357      E7800000 
+ 358              	.LVL45:
+  57:src/main.cpp  ****     MemoryAllocator::free(p2);
+ 359              		.loc 1 57 5 is_stmt 1
+  57:src/main.cpp  ****     MemoryAllocator::free(p2);
+ 360              		.loc 1 57 26 is_stmt 0
+ 361 026c 13050A00 		mv	a0,s4
+ 362 0270 97000000 		call	_ZN15MemoryAllocator4freeEPv
+ 362      E7800000 
+ 363              	.LVL46:
+  58:src/main.cpp  ****     MemoryAllocator::check();
+ 364              		.loc 1 58 5 is_stmt 1
+  58:src/main.cpp  ****     MemoryAllocator::check();
+ 365              		.loc 1 58 26 is_stmt 0
+ 366 0278 13850900 		mv	a0,s3
+ 367 027c 97000000 		call	_ZN15MemoryAllocator4freeEPv
+ 367      E7800000 
+ 368              	.LVL47:
+  59:src/main.cpp  ****     check_bool("free restored full heap", MemoryAllocator::total_free_bytes() == free0);
+ 369              		.loc 1 59 5 is_stmt 1
+  59:src/main.cpp  ****     check_bool("free restored full heap", MemoryAllocator::total_free_bytes() == free0);
+ 370              		.loc 1 59 27 is_stmt 0
+ 371 0284 97000000 		call	_ZN15MemoryAllocator5checkEv
+ 371      E7800000 
+ 372              	.LVL48:
+  60:src/main.cpp  **** 
+ 373              		.loc 1 60 5 is_stmt 1
+  60:src/main.cpp  **** 
+ 374              		.loc 1 60 76 is_stmt 0
+ 375 028c 97000000 		call	_ZN15MemoryAllocator16total_free_bytesEv
+ 375      E7800000 
+GAS LISTING /tmp/ccbGazKg.s 			page 12
+
+
+ 376              	.LVL49:
+  60:src/main.cpp  **** 
+ 377              		.loc 1 60 15
+ 378 0294 B305A940 		sub	a1,s2,a0
+ 379 0298 93B51500 		seqz	a1,a1
+ 380 029c 17050000 		lla	a0,.LC10
+ 380      13050500 
+ 381 02a4 97000000 		call	_ZL10check_boolPKcb
+ 381      E7800000 
+ 382              	.LVL50:
+  63:src/main.cpp  **** 
+ 383              		.loc 1 63 5 is_stmt 1
+  63:src/main.cpp  **** 
+ 384              		.loc 1 63 56 is_stmt 0
+ 385 02ac 13050000 		li	a0,0
+ 386 02b0 97000000 		call	_ZN15MemoryAllocator4freeEPv
+ 386      E7800000 
+ 387              	.LVL51:
+  63:src/main.cpp  **** 
+ 388              		.loc 1 63 15
+ 389 02b8 93351500 		seqz	a1,a0
+ 390 02bc 17050000 		lla	a0,.LC11
+ 390      13050500 
+ 391 02c4 97000000 		call	_ZL10check_boolPKcb
+ 391      E7800000 
+ 392              	.LVL52:
+  66:src/main.cpp  ****                MemoryAllocator::free((void*)0xdeadbeefUL) == -1);
+ 393              		.loc 1 66 5 is_stmt 1
+  67:src/main.cpp  **** 
+ 394              		.loc 1 67 37 is_stmt 0
+ 395 02cc 3775AB37 		li	a0,933982208
+ 396 02d0 13152500 		slli	a0,a0,2
+ 397 02d4 1305F5EE 		addi	a0,a0,-273
+ 398 02d8 97000000 		call	_ZN15MemoryAllocator4freeEPv
+ 398      E7800000 
+ 399              	.LVL53:
+  66:src/main.cpp  ****                MemoryAllocator::free((void*)0xdeadbeefUL) == -1);
+ 400              		.loc 1 66 15
+ 401 02e0 93051500 		addi	a1,a0,1
+ 402 02e4 93B51500 		seqz	a1,a1
+ 403 02e8 17050000 		lla	a0,.LC12
+ 403      13050500 
+ 404 02f0 97000000 		call	_ZL10check_boolPKcb
+ 404      E7800000 
+ 405              	.LVL54:
+  70:src/main.cpp  **** }
+ 406              		.loc 1 70 5 is_stmt 1
+  70:src/main.cpp  **** }
+ 407              		.loc 1 70 58 is_stmt 0
+ 408 02f8 13050000 		li	a0,0
+ 409 02fc 97000000 		call	_ZN15MemoryAllocator5allocEm
+ 409      E7800000 
+ 410              	.LVL55:
+  70:src/main.cpp  **** }
+ 411              		.loc 1 70 15
+ 412 0304 93351500 		seqz	a1,a0
+ 413 0308 17050000 		lla	a0,.LC13
+GAS LISTING /tmp/ccbGazKg.s 			page 13
+
+
+ 413      13050500 
+ 414 0310 97000000 		call	_ZL10check_boolPKcb
+ 414      E7800000 
+ 415              	.LVL56:
+  71:src/main.cpp  **** 
+ 416              		.loc 1 71 1
+ 417 0318 83308103 		ld	ra,56(sp)
+ 418              		.cfi_restore 1
+ 419 031c 03340103 		ld	s0,48(sp)
+ 420              		.cfi_restore 8
+ 421              		.cfi_def_cfa 2, 64
+ 422 0320 83348102 		ld	s1,40(sp)
+ 423              		.cfi_restore 9
+ 424              	.LVL57:
+ 425 0324 03390102 		ld	s2,32(sp)
+ 426              		.cfi_restore 18
+ 427              	.LVL58:
+ 428 0328 83398101 		ld	s3,24(sp)
+ 429              		.cfi_restore 19
+ 430              	.LVL59:
+ 431 032c 033A0101 		ld	s4,16(sp)
+ 432              		.cfi_restore 20
+ 433              	.LVL60:
+ 434 0330 833A8100 		ld	s5,8(sp)
+ 435              		.cfi_restore 21
+ 436              	.LVL61:
+ 437 0334 13010104 		addi	sp,sp,64
+ 438              		.cfi_def_cfa_offset 0
+ 439 0338 67800000 		jr	ra
+ 440              		.cfi_endproc
+ 441              	.LFE2:
+ 443              		.section	.rodata.str1.8
+ 444 0141 00000000 		.align	3
+ 444      000000
+ 445              	.LC14:
+ 446 0148 0A2D2D20 		.string	"\n-- stress --\n"
+ 446      73747265 
+ 446      7373202D 
+ 446      2D0A00
+ 447 0157 00       		.align	3
+ 448              	.LC15:
+ 449 0158 2020616C 		.string	"  allocated 4KB blocks: "
+ 449      6C6F6361 
+ 449      74656420 
+ 449      344B4220 
+ 449      626C6F63 
+ 450 0171 00000000 		.align	3
+ 450      000000
+ 451              	.LC16:
+ 452 0178 6174206C 		.string	"at least 8 x 4KB fit"
+ 452      65617374 
+ 452      20382078 
+ 452      20344B42 
+ 452      20666974 
+ 453 018d 000000   		.align	3
+ 454              	.LC17:
+ 455 0190 73747265 		.string	"stress: free restored full heap"
+GAS LISTING /tmp/ccbGazKg.s 			page 14
+
+
+ 455      73733A20 
+ 455      66726565 
+ 455      20726573 
+ 455      746F7265 
+ 456              		.align	3
+ 457              	.LC18:
+ 458 01b0 66726167 		.string	"fragmentation: full free restored heap"
+ 458      6D656E74 
+ 458      6174696F 
+ 458      6E3A2066 
+ 458      756C6C20 
+ 459              		.text
+ 460              		.align	2
+ 462              	_ZL12stress_testsv:
+ 463              	.LFB11:
+  97:src/main.cpp  ****     Foo* f = new Foo;
+  98:src/main.cpp  ****     check_bool("new Foo in heap", in_heap(f));
+  99:src/main.cpp  ****     delete f;
+ 100:src/main.cpp  ****     check_bool("delete restored heap",
+ 101:src/main.cpp  ****                MemoryAllocator::total_free_bytes() == free0);
+ 102:src/main.cpp  **** }
+ 103:src/main.cpp  **** 
+ 104:src/main.cpp  **** // ---- stress / fragmentation ----------------------------------------------
+ 105:src/main.cpp  **** 
+ 106:src/main.cpp  **** static void stress_tests() {
+ 464              		.loc 1 106 28 is_stmt 1
+ 465              		.cfi_startproc
+ 466 033c 130101C9 		addi	sp,sp,-880
+ 467              		.cfi_def_cfa_offset 880
+ 468 0340 23341136 		sd	ra,872(sp)
+ 469 0344 23308136 		sd	s0,864(sp)
+ 470 0348 233C9134 		sd	s1,856(sp)
+ 471 034c 23382135 		sd	s2,848(sp)
+ 472 0350 23343135 		sd	s3,840(sp)
+ 473              		.cfi_offset 1, -8
+ 474              		.cfi_offset 8, -16
+ 475              		.cfi_offset 9, -24
+ 476              		.cfi_offset 18, -32
+ 477              		.cfi_offset 19, -40
+ 478 0354 13040137 		addi	s0,sp,880
+ 479              		.cfi_def_cfa 8, 0
+ 107:src/main.cpp  ****     kputs("\n-- stress --\n");
+ 480              		.loc 1 107 5
+ 481              		.loc 1 107 10 is_stmt 0
+ 482 0358 17050000 		lla	a0,.LC14
+ 482      13050500 
+ 483 0360 97000000 		call	kputs
+ 483      E7800000 
+ 484              	.LVL62:
+ 108:src/main.cpp  **** 
+ 109:src/main.cpp  ****     size_t free0 = MemoryAllocator::total_free_bytes();
+ 485              		.loc 1 109 5 is_stmt 1
+ 486              		.loc 1 109 53 is_stmt 0
+ 487 0368 97000000 		call	_ZN15MemoryAllocator16total_free_bytesEv
+ 487      E7800000 
+ 488              	.LVL63:
+ 489 0370 13090500 		mv	s2,a0
+GAS LISTING /tmp/ccbGazKg.s 			page 15
+
+
+ 490              	.LBB8:
+ 110:src/main.cpp  **** 
+ 111:src/main.cpp  ****     // Exhaust the heap with 4 KB allocations, then free them all.
+ 112:src/main.cpp  ****     const int N = 64;
+ 113:src/main.cpp  ****     void* buf[N];
+ 114:src/main.cpp  ****     int allocated = 0;
+ 115:src/main.cpp  ****     for (int i = 0; i < N; i++) {
+ 491              		.loc 1 115 14
+ 492 0374 93040000 		li	s1,0
+ 493              	.LBE8:
+ 114:src/main.cpp  ****     for (int i = 0; i < N; i++) {
+ 494              		.loc 1 114 9
+ 495 0378 93090000 		li	s3,0
+ 496              	.L18:
+ 497              	.LVL64:
+ 498              	.LBB9:
+ 499              		.loc 1 115 23 is_stmt 1 discriminator 1
+ 500 037c 9307F003 		li	a5,63
+ 501 0380 63C89702 		bgt	s1,a5,.L17
+ 116:src/main.cpp  ****         buf[i] = mem_alloc(4096);
+ 502              		.loc 1 116 9
+ 503              		.loc 1 116 27 is_stmt 0
+ 504 0384 37150000 		li	a0,4096
+ 505 0388 97000000 		call	mem_alloc
+ 505      E7800000 
+ 506              	.LVL65:
+ 507              		.loc 1 116 16
+ 508 0390 93973400 		slli	a5,s1,3
+ 509 0394 130704FD 		addi	a4,s0,-48
+ 510 0398 B307F700 		add	a5,a4,a5
+ 511 039c 23B0A7E0 		sd	a0,-512(a5)
+ 117:src/main.cpp  ****         if (!buf[i]) break;
+ 512              		.loc 1 117 9 is_stmt 1
+ 513 03a0 63080500 		beqz	a0,.L17
+ 118:src/main.cpp  ****         allocated++;
+ 514              		.loc 1 118 9 discriminator 2
+ 515              		.loc 1 118 18 is_stmt 0 discriminator 2
+ 516 03a4 9B891900 		addiw	s3,s3,1
+ 517              	.LVL66:
+ 115:src/main.cpp  ****         buf[i] = mem_alloc(4096);
+ 518              		.loc 1 115 5 is_stmt 1 discriminator 2
+ 519 03a8 9B841400 		addiw	s1,s1,1
+ 520              	.LVL67:
+ 521 03ac 6FF01FFD 		j	.L18
+ 522              	.LVL68:
+ 523              	.L17:
+ 524              	.LBE9:
+ 119:src/main.cpp  ****     }
+ 120:src/main.cpp  ****     kputs("  allocated 4KB blocks: "); kputdec(allocated); kputc('\n');
+ 525              		.loc 1 120 5
+ 526              		.loc 1 120 10 is_stmt 0
+ 527 03b0 17050000 		lla	a0,.LC15
+ 527      13050500 
+ 528 03b8 97000000 		call	kputs
+ 528      E7800000 
+ 529              	.LVL69:
+ 530              		.loc 1 120 40 is_stmt 1
+GAS LISTING /tmp/ccbGazKg.s 			page 16
+
+
+ 531              		.loc 1 120 47 is_stmt 0
+ 532 03c0 13850900 		mv	a0,s3
+ 533 03c4 97000000 		call	kputdec
+ 533      E7800000 
+ 534              	.LVL70:
+ 535              		.loc 1 120 60 is_stmt 1
+ 536              		.loc 1 120 65 is_stmt 0
+ 537 03cc 1305A000 		li	a0,10
+ 538 03d0 97000000 		call	kputc
+ 538      E7800000 
+ 539              	.LVL71:
+ 121:src/main.cpp  ****     check_bool("at least 8 x 4KB fit", allocated >= 8);
+ 540              		.loc 1 121 5 is_stmt 1
+ 541              		.loc 1 121 15 is_stmt 0
+ 542 03d8 93057000 		li	a1,7
+ 543 03dc B3A53501 		sgt	a1,s3,a1
+ 544 03e0 17050000 		lla	a0,.LC16
+ 544      13050500 
+ 545 03e8 97000000 		call	_ZL10check_boolPKcb
+ 545      E7800000 
+ 546              	.LVL72:
+ 547              	.LBB10:
+ 122:src/main.cpp  **** 
+ 123:src/main.cpp  ****     for (int i = 0; i < allocated; i++) mem_free(buf[i]);
+ 548              		.loc 1 123 14
+ 549 03f0 93040000 		li	s1,0
+ 550              	.LVL73:
+ 551              	.L20:
+ 552              		.loc 1 123 23 is_stmt 1 discriminator 4
+ 553 03f4 63D23403 		ble	s3,s1,.L19
+ 554              		.loc 1 123 41 discriminator 2
+ 555              		.loc 1 123 49 is_stmt 0 discriminator 2
+ 556 03f8 93973400 		slli	a5,s1,3
+ 557 03fc 130704FD 		addi	a4,s0,-48
+ 558 0400 B307F700 		add	a5,a4,a5
+ 559 0404 03B507E0 		ld	a0,-512(a5)
+ 560 0408 97000000 		call	mem_free
+ 560      E7800000 
+ 561              	.LVL74:
+ 562              		.loc 1 123 5 is_stmt 1 discriminator 2
+ 563 0410 9B841400 		addiw	s1,s1,1
+ 564              	.LVL75:
+ 565 0414 6FF01FFE 		j	.L20
+ 566              	.LVL76:
+ 567              	.L19:
+ 568              	.LBE10:
+ 124:src/main.cpp  ****     MemoryAllocator::check();
+ 569              		.loc 1 124 5
+ 570              		.loc 1 124 27 is_stmt 0
+ 571 0418 97000000 		call	_ZN15MemoryAllocator5checkEv
+ 571      E7800000 
+ 572              	.LVL77:
+ 125:src/main.cpp  ****     check_bool("stress: free restored full heap",
+ 573              		.loc 1 125 5 is_stmt 1
+ 126:src/main.cpp  ****                MemoryAllocator::total_free_bytes() == free0);
+ 574              		.loc 1 126 49 is_stmt 0
+ 575 0420 97000000 		call	_ZN15MemoryAllocator16total_free_bytesEv
+GAS LISTING /tmp/ccbGazKg.s 			page 17
+
+
+ 575      E7800000 
+ 576              	.LVL78:
+ 125:src/main.cpp  ****     check_bool("stress: free restored full heap",
+ 577              		.loc 1 125 15
+ 578 0428 B305A940 		sub	a1,s2,a0
+ 579 042c 93B51500 		seqz	a1,a1
+ 580 0430 17050000 		lla	a0,.LC17
+ 580      13050500 
+ 581 0438 97000000 		call	_ZL10check_boolPKcb
+ 581      E7800000 
+ 582              	.LVL79:
+ 583              	.LBB11:
+ 127:src/main.cpp  **** 
+ 128:src/main.cpp  ****     // Fragmentation: alloc 40 small, free every other, then try one big.
+ 129:src/main.cpp  ****     const int M = 40;
+ 130:src/main.cpp  ****     void* small[M];
+ 131:src/main.cpp  ****     for (int i = 0; i < M; i++) small[i] = mem_alloc(128);
+ 584              		.loc 1 131 14
+ 585 0440 93040000 		li	s1,0
+ 586              	.LVL80:
+ 587 0444 6F004002 		j	.L22
+ 588              	.LVL81:
+ 589              	.L28:
+ 590              		.loc 1 131 33 is_stmt 1 discriminator 2
+ 591              		.loc 1 131 53 is_stmt 0 discriminator 2
+ 592 0448 13050008 		li	a0,128
+ 593 044c 97000000 		call	mem_alloc
+ 593      E7800000 
+ 594              	.LVL82:
+ 595              		.loc 1 131 42 discriminator 2
+ 596 0454 93973400 		slli	a5,s1,3
+ 597 0458 130704FD 		addi	a4,s0,-48
+ 598 045c B307F700 		add	a5,a4,a5
+ 599 0460 23B0A7CC 		sd	a0,-832(a5)
+ 600              		.loc 1 131 5 is_stmt 1 discriminator 2
+ 601 0464 9B841400 		addiw	s1,s1,1
+ 602              	.LVL83:
+ 603              	.L22:
+ 604              		.loc 1 131 23 discriminator 4
+ 605 0468 93077002 		li	a5,39
+ 606 046c E3DE97FC 		ble	s1,a5,.L28
+ 607              	.LBE11:
+ 608              	.LBB12:
+ 132:src/main.cpp  ****     for (int i = 0; i < M; i += 2) mem_free(small[i]);
+ 609              		.loc 1 132 14 is_stmt 0
+ 610 0470 93040000 		li	s1,0
+ 611              	.LVL84:
+ 612 0474 6F000002 		j	.L21
+ 613              	.LVL85:
+ 614              	.L29:
+ 615              		.loc 1 132 36 is_stmt 1 discriminator 2
+ 616              		.loc 1 132 44 is_stmt 0 discriminator 2
+ 617 0478 93973400 		slli	a5,s1,3
+ 618 047c 130704FD 		addi	a4,s0,-48
+ 619 0480 B307F700 		add	a5,a4,a5
+ 620 0484 03B507CC 		ld	a0,-832(a5)
+ 621 0488 97000000 		call	mem_free
+GAS LISTING /tmp/ccbGazKg.s 			page 18
+
+
+ 621      E7800000 
+ 622              	.LVL86:
+ 623              		.loc 1 132 5 is_stmt 1 discriminator 2
+ 624              		.loc 1 132 30 is_stmt 0 discriminator 2
+ 625 0490 9B842400 		addiw	s1,s1,2
+ 626              	.LVL87:
+ 627              	.L21:
+ 628              		.loc 1 132 23 is_stmt 1 discriminator 4
+ 629 0494 93077002 		li	a5,39
+ 630 0498 E3D097FE 		ble	s1,a5,.L29
+ 631              	.LBE12:
+ 133:src/main.cpp  ****     MemoryAllocator::check();
+ 632              		.loc 1 133 5
+ 633              		.loc 1 133 27 is_stmt 0
+ 634 049c 97000000 		call	_ZN15MemoryAllocator5checkEv
+ 634      E7800000 
+ 635              	.LVL88:
+ 636              	.LBB13:
+ 134:src/main.cpp  ****     // After freeing odd-indexed-only, freelist has many small holes; clean up.
+ 135:src/main.cpp  ****     for (int i = 1; i < M; i += 2) mem_free(small[i]);
+ 637              		.loc 1 135 14
+ 638 04a4 93041000 		li	s1,1
+ 639              	.LVL89:
+ 640              	.L25:
+ 641              		.loc 1 135 23 is_stmt 1 discriminator 4
+ 642 04a8 93077002 		li	a5,39
+ 643 04ac 63C29702 		bgt	s1,a5,.L24
+ 644              		.loc 1 135 36 discriminator 2
+ 645              		.loc 1 135 44 is_stmt 0 discriminator 2
+ 646 04b0 93973400 		slli	a5,s1,3
+ 647 04b4 130704FD 		addi	a4,s0,-48
+ 648 04b8 B307F700 		add	a5,a4,a5
+ 649 04bc 03B507CC 		ld	a0,-832(a5)
+ 650 04c0 97000000 		call	mem_free
+ 650      E7800000 
+ 651              	.LVL90:
+ 652              		.loc 1 135 5 is_stmt 1 discriminator 2
+ 653              		.loc 1 135 30 is_stmt 0 discriminator 2
+ 654 04c8 9B842400 		addiw	s1,s1,2
+ 655              	.LVL91:
+ 656              		.loc 1 135 5 discriminator 2
+ 657 04cc 6FF0DFFD 		j	.L25
+ 658              	.LVL92:
+ 659              	.L24:
+ 660              	.LBE13:
+ 136:src/main.cpp  ****     MemoryAllocator::check();
+ 661              		.loc 1 136 5 is_stmt 1
+ 662              		.loc 1 136 27 is_stmt 0
+ 663 04d0 97000000 		call	_ZN15MemoryAllocator5checkEv
+ 663      E7800000 
+ 664              	.LVL93:
+ 137:src/main.cpp  ****     check_bool("fragmentation: full free restored heap",
+ 665              		.loc 1 137 5 is_stmt 1
+ 138:src/main.cpp  ****                MemoryAllocator::total_free_bytes() == free0);
+ 666              		.loc 1 138 49 is_stmt 0
+ 667 04d8 97000000 		call	_ZN15MemoryAllocator16total_free_bytesEv
+ 667      E7800000 
+GAS LISTING /tmp/ccbGazKg.s 			page 19
+
+
+ 668              	.LVL94:
+ 137:src/main.cpp  ****     check_bool("fragmentation: full free restored heap",
+ 669              		.loc 1 137 15
+ 670 04e0 B305A940 		sub	a1,s2,a0
+ 671 04e4 93B51500 		seqz	a1,a1
+ 672 04e8 17050000 		lla	a0,.LC18
+ 672      13050500 
+ 673 04f0 97000000 		call	_ZL10check_boolPKcb
+ 673      E7800000 
+ 674              	.LVL95:
+ 139:src/main.cpp  **** }
+ 675              		.loc 1 139 1
+ 676 04f8 83308136 		ld	ra,872(sp)
+ 677              		.cfi_restore 1
+ 678 04fc 03340136 		ld	s0,864(sp)
+ 679              		.cfi_restore 8
+ 680              		.cfi_def_cfa 2, 880
+ 681 0500 83348135 		ld	s1,856(sp)
+ 682              		.cfi_restore 9
+ 683              	.LVL96:
+ 684 0504 03390135 		ld	s2,848(sp)
+ 685              		.cfi_restore 18
+ 686 0508 83398134 		ld	s3,840(sp)
+ 687              		.cfi_restore 19
+ 688              	.LVL97:
+ 689 050c 13010137 		addi	sp,sp,880
+ 690              		.cfi_def_cfa_offset 0
+ 691 0510 67800000 		jr	ra
+ 692              		.cfi_endproc
+ 693              	.LFE11:
+ 695              		.section	.rodata.str1.8
+ 696 01d7 00       		.align	3
+ 697              	.LC19:
+ 698 01d8 0A2D2D20 		.string	"\n-- e2e (mem_alloc / mem_free via ecall) --\n"
+ 698      65326520 
+ 698      286D656D 
+ 698      5F616C6C 
+ 698      6F63202F 
+ 699 0205 000000   		.align	3
+ 700              	.LC20:
+ 701 0208 6563616C 		.string	"ecall mem_alloc(100)"
+ 701      6C206D65 
+ 701      6D5F616C 
+ 701      6C6F6328 
+ 701      31303029 
+ 702 021d 000000   		.align	3
+ 703              	.LC21:
+ 704 0220 6563616C 		.string	"ecall mem_alloc(4096)"
+ 704      6C206D65 
+ 704      6D5F616C 
+ 704      6C6F6328 
+ 704      34303936 
+ 705 0236 0000     		.align	3
+ 706              	.LC22:
+ 707 0238 6563616C 		.string	"ecall mem_free(p1) == 0"
+ 707      6C206D65 
+ 707      6D5F6672 
+GAS LISTING /tmp/ccbGazKg.s 			page 20
+
+
+ 707      65652870 
+ 707      3129203D 
+ 708              		.align	3
+ 709              	.LC23:
+ 710 0250 6563616C 		.string	"ecall reuse"
+ 710      6C207265 
+ 710      75736500 
+ 711 025c 00000000 		.align	3
+ 712              	.LC24:
+ 713 0260 6563616C 		.string	"ecall full free restored heap"
+ 713      6C206675 
+ 713      6C6C2066 
+ 713      72656520 
+ 713      72657374 
+ 714 027e 0000     		.align	3
+ 715              	.LC25:
+ 716 0280 6E657720 		.string	"new Foo in heap"
+ 716      466F6F20 
+ 716      696E2068 
+ 716      65617000 
+ 717              		.align	3
+ 718              	.LC26:
+ 719 0290 64656C65 		.string	"delete restored heap"
+ 719      74652072 
+ 719      6573746F 
+ 719      72656420 
+ 719      68656170 
+ 720              		.text
+ 721              		.align	2
+ 723              	_ZL9e2e_testsv:
+ 724              	.LFB3:
+  75:src/main.cpp  ****     kputs("\n-- e2e (mem_alloc / mem_free via ecall) --\n");
+ 725              		.loc 1 75 25 is_stmt 1
+ 726              		.cfi_startproc
+ 727 0514 130101FD 		addi	sp,sp,-48
+ 728              		.cfi_def_cfa_offset 48
+ 729 0518 23341102 		sd	ra,40(sp)
+ 730 051c 23308102 		sd	s0,32(sp)
+ 731 0520 233C9100 		sd	s1,24(sp)
+ 732 0524 23382101 		sd	s2,16(sp)
+ 733 0528 23343101 		sd	s3,8(sp)
+ 734 052c 23304101 		sd	s4,0(sp)
+ 735              		.cfi_offset 1, -8
+ 736              		.cfi_offset 8, -16
+ 737              		.cfi_offset 9, -24
+ 738              		.cfi_offset 18, -32
+ 739              		.cfi_offset 19, -40
+ 740              		.cfi_offset 20, -48
+ 741 0530 13040103 		addi	s0,sp,48
+ 742              		.cfi_def_cfa 8, 0
+  76:src/main.cpp  **** 
+ 743              		.loc 1 76 5
+  76:src/main.cpp  **** 
+ 744              		.loc 1 76 10 is_stmt 0
+ 745 0534 17050000 		lla	a0,.LC19
+ 745      13050500 
+ 746 053c 97000000 		call	kputs
+GAS LISTING /tmp/ccbGazKg.s 			page 21
+
+
+ 746      E7800000 
+ 747              	.LVL98:
+  78:src/main.cpp  **** 
+ 748              		.loc 1 78 5 is_stmt 1
+  78:src/main.cpp  **** 
+ 749              		.loc 1 78 53 is_stmt 0
+ 750 0544 97000000 		call	_ZN15MemoryAllocator16total_free_bytesEv
+ 750      E7800000 
+ 751              	.LVL99:
+ 752 054c 13090500 		mv	s2,a0
+ 753              	.LVL100:
+  80:src/main.cpp  ****     void* p2 = mem_alloc(4096);
+ 754              		.loc 1 80 5 is_stmt 1
+  80:src/main.cpp  ****     void* p2 = mem_alloc(4096);
+ 755              		.loc 1 80 25 is_stmt 0
+ 756 0550 13054006 		li	a0,100
+ 757              	.LVL101:
+ 758 0554 97000000 		call	mem_alloc
+ 758      E7800000 
+ 759              	.LVL102:
+ 760 055c 93040500 		mv	s1,a0
+ 761              	.LVL103:
+  81:src/main.cpp  ****     check_bool("ecall mem_alloc(100)",  in_heap(p1));
+ 762              		.loc 1 81 5 is_stmt 1
+  81:src/main.cpp  ****     check_bool("ecall mem_alloc(100)",  in_heap(p1));
+ 763              		.loc 1 81 25 is_stmt 0
+ 764 0560 37150000 		li	a0,4096
+ 765 0564 97000000 		call	mem_alloc
+ 765      E7800000 
+ 766              	.LVL104:
+ 767 056c 93090500 		mv	s3,a0
+ 768              	.LVL105:
+  82:src/main.cpp  ****     check_bool("ecall mem_alloc(4096)", in_heap(p2));
+ 769              		.loc 1 82 5 is_stmt 1
+  82:src/main.cpp  ****     check_bool("ecall mem_alloc(4096)", in_heap(p2));
+ 770              		.loc 1 82 15 is_stmt 0
+ 771 0570 13850400 		mv	a0,s1
+ 772              	.LVL106:
+ 773 0574 97000000 		call	_ZL7in_heapPv
+ 773      E7800000 
+ 774              	.LVL107:
+ 775 057c 93050500 		mv	a1,a0
+ 776 0580 17050000 		lla	a0,.LC20
+ 776      13050500 
+ 777 0588 97000000 		call	_ZL10check_boolPKcb
+ 777      E7800000 
+ 778              	.LVL108:
+  83:src/main.cpp  **** 
+ 779              		.loc 1 83 5 is_stmt 1
+  83:src/main.cpp  **** 
+ 780              		.loc 1 83 15 is_stmt 0
+ 781 0590 13850900 		mv	a0,s3
+ 782 0594 97000000 		call	_ZL7in_heapPv
+ 782      E7800000 
+ 783              	.LVL109:
+ 784 059c 93050500 		mv	a1,a0
+ 785 05a0 17050000 		lla	a0,.LC21
+GAS LISTING /tmp/ccbGazKg.s 			page 22
+
+
+ 785      13050500 
+ 786 05a8 97000000 		call	_ZL10check_boolPKcb
+ 786      E7800000 
+ 787              	.LVL110:
+  85:src/main.cpp  ****     check_bool("ecall mem_free(p1) == 0", r1 == 0);
+ 788              		.loc 1 85 5 is_stmt 1
+  85:src/main.cpp  ****     check_bool("ecall mem_free(p1) == 0", r1 == 0);
+ 789              		.loc 1 85 22 is_stmt 0
+ 790 05b0 13850400 		mv	a0,s1
+ 791 05b4 97000000 		call	mem_free
+ 791      E7800000 
+ 792              	.LVL111:
+  86:src/main.cpp  ****     void* p1b = mem_alloc(100);
+ 793              		.loc 1 86 5 is_stmt 1
+  86:src/main.cpp  ****     void* p1b = mem_alloc(100);
+ 794              		.loc 1 86 15 is_stmt 0
+ 795 05bc 93351500 		seqz	a1,a0
+ 796 05c0 17050000 		lla	a0,.LC22
+ 796      13050500 
+ 797              	.LVL112:
+ 798 05c8 97000000 		call	_ZL10check_boolPKcb
+ 798      E7800000 
+ 799              	.LVL113:
+  87:src/main.cpp  ****     check_bool("ecall reuse", p1b == p1);
+ 800              		.loc 1 87 5 is_stmt 1
+  87:src/main.cpp  ****     check_bool("ecall reuse", p1b == p1);
+ 801              		.loc 1 87 26 is_stmt 0
+ 802 05d0 13054006 		li	a0,100
+ 803 05d4 97000000 		call	mem_alloc
+ 803      E7800000 
+ 804              	.LVL114:
+ 805 05dc 130A0500 		mv	s4,a0
+ 806              	.LVL115:
+  88:src/main.cpp  **** 
+ 807              		.loc 1 88 5 is_stmt 1
+  88:src/main.cpp  **** 
+ 808              		.loc 1 88 15 is_stmt 0
+ 809 05e0 B385A440 		sub	a1,s1,a0
+ 810 05e4 93B51500 		seqz	a1,a1
+ 811 05e8 17050000 		lla	a0,.LC23
+ 811      13050500 
+ 812              	.LVL116:
+ 813 05f0 97000000 		call	_ZL10check_boolPKcb
+ 813      E7800000 
+ 814              	.LVL117:
+  90:src/main.cpp  ****     mem_free(p2);
+ 815              		.loc 1 90 5 is_stmt 1
+  90:src/main.cpp  ****     mem_free(p2);
+ 816              		.loc 1 90 13 is_stmt 0
+ 817 05f8 13050A00 		mv	a0,s4
+ 818 05fc 97000000 		call	mem_free
+ 818      E7800000 
+ 819              	.LVL118:
+  91:src/main.cpp  ****     check_bool("ecall full free restored heap",
+ 820              		.loc 1 91 5 is_stmt 1
+  91:src/main.cpp  ****     check_bool("ecall full free restored heap",
+ 821              		.loc 1 91 13 is_stmt 0
+GAS LISTING /tmp/ccbGazKg.s 			page 23
+
+
+ 822 0604 13850900 		mv	a0,s3
+ 823 0608 97000000 		call	mem_free
+ 823      E7800000 
+ 824              	.LVL119:
+  92:src/main.cpp  ****                MemoryAllocator::total_free_bytes() == free0);
+ 825              		.loc 1 92 5 is_stmt 1
+  93:src/main.cpp  **** 
+ 826              		.loc 1 93 49 is_stmt 0
+ 827 0610 97000000 		call	_ZN15MemoryAllocator16total_free_bytesEv
+ 827      E7800000 
+ 828              	.LVL120:
+  92:src/main.cpp  ****                MemoryAllocator::total_free_bytes() == free0);
+ 829              		.loc 1 92 15
+ 830 0618 B305A940 		sub	a1,s2,a0
+ 831 061c 93B51500 		seqz	a1,a1
+ 832 0620 17050000 		lla	a0,.LC24
+ 832      13050500 
+ 833 0628 97000000 		call	_ZL10check_boolPKcb
+ 833      E7800000 
+ 834              	.LVL121:
+  96:src/main.cpp  ****     Foo* f = new Foo;
+ 835              		.loc 1 96 5 is_stmt 1
+  97:src/main.cpp  ****     check_bool("new Foo in heap", in_heap(f));
+ 836              		.loc 1 97 5
+  97:src/main.cpp  ****     check_bool("new Foo in heap", in_heap(f));
+ 837              		.loc 1 97 18 is_stmt 0
+ 838 0630 13058004 		li	a0,72
+ 839 0634 97000000 		call	_Znwm
+ 839      E7800000 
+ 840              	.LVL122:
+ 841 063c 93040500 		mv	s1,a0
+ 842              	.LVL123:
+ 843              	.LBB14:
+ 844              	.LBB15:
+  96:src/main.cpp  ****     Foo* f = new Foo;
+ 845              		.loc 1 96 12
+ 846 0640 97070000 		lla	a5,.LANCHOR0+16
+ 846      93870700 
+ 847 0648 2330F500 		sd	a5,0(a0)
+ 848              	.LVL124:
+ 849              	.LBE15:
+ 850              	.LBE14:
+  98:src/main.cpp  ****     delete f;
+ 851              		.loc 1 98 5 is_stmt 1
+  98:src/main.cpp  ****     delete f;
+ 852              		.loc 1 98 15 is_stmt 0
+ 853 064c 97000000 		call	_ZL7in_heapPv
+ 853      E7800000 
+ 854              	.LVL125:
+ 855 0654 93050500 		mv	a1,a0
+ 856 0658 17050000 		lla	a0,.LC25
+ 856      13050500 
+ 857 0660 97000000 		call	_ZL10check_boolPKcb
+ 857      E7800000 
+ 858              	.LVL126:
+  99:src/main.cpp  ****     check_bool("delete restored heap",
+ 859              		.loc 1 99 5 is_stmt 1
+GAS LISTING /tmp/ccbGazKg.s 			page 24
+
+
+  99:src/main.cpp  ****     check_bool("delete restored heap",
+ 860              		.loc 1 99 13 is_stmt 0
+ 861 0668 638A0400 		beqz	s1,.L31
+  99:src/main.cpp  ****     check_bool("delete restored heap",
+ 862              		.loc 1 99 12 discriminator 1
+ 863 066c 83B70400 		ld	a5,0(s1)
+ 864 0670 83B78700 		ld	a5,8(a5)
+ 865 0674 13850400 		mv	a0,s1
+ 866 0678 E7800700 		jalr	a5
+ 867              	.LVL127:
+ 868              	.L31:
+ 100:src/main.cpp  ****                MemoryAllocator::total_free_bytes() == free0);
+ 869              		.loc 1 100 5 is_stmt 1
+ 101:src/main.cpp  **** }
+ 870              		.loc 1 101 49 is_stmt 0
+ 871 067c 97000000 		call	_ZN15MemoryAllocator16total_free_bytesEv
+ 871      E7800000 
+ 872              	.LVL128:
+ 100:src/main.cpp  ****                MemoryAllocator::total_free_bytes() == free0);
+ 873              		.loc 1 100 15
+ 874 0684 B305A940 		sub	a1,s2,a0
+ 875 0688 93B51500 		seqz	a1,a1
+ 876 068c 17050000 		lla	a0,.LC26
+ 876      13050500 
+ 877 0694 97000000 		call	_ZL10check_boolPKcb
+ 877      E7800000 
+ 878              	.LVL129:
+ 102:src/main.cpp  **** 
+ 879              		.loc 1 102 1
+ 880 069c 83308102 		ld	ra,40(sp)
+ 881              		.cfi_restore 1
+ 882 06a0 03340102 		ld	s0,32(sp)
+ 883              		.cfi_restore 8
+ 884              		.cfi_def_cfa 2, 48
+ 885 06a4 83348101 		ld	s1,24(sp)
+ 886              		.cfi_restore 9
+ 887              	.LVL130:
+ 888 06a8 03390101 		ld	s2,16(sp)
+ 889              		.cfi_restore 18
+ 890              	.LVL131:
+ 891 06ac 83398100 		ld	s3,8(sp)
+ 892              		.cfi_restore 19
+ 893              	.LVL132:
+ 894 06b0 033A0100 		ld	s4,0(sp)
+ 895              		.cfi_restore 20
+ 896              	.LVL133:
+ 897 06b4 13010103 		addi	sp,sp,48
+ 898              		.cfi_def_cfa_offset 0
+ 899 06b8 67800000 		jr	ra
+ 900              		.cfi_endproc
+ 901              	.LFE3:
+ 903              		.align	2
+ 905              	_ZZL9e2e_testsvEN3FooD0Ev:
+ 906              	.LFB7:
+  96:src/main.cpp  ****     Foo* f = new Foo;
+ 907              		.loc 1 96 39 is_stmt 1
+ 908              		.cfi_startproc
+GAS LISTING /tmp/ccbGazKg.s 			page 25
+
+
+ 909              	.LVL134:
+ 910 06bc 130101FF 		addi	sp,sp,-16
+ 911              		.cfi_def_cfa_offset 16
+ 912 06c0 23341100 		sd	ra,8(sp)
+ 913 06c4 23308100 		sd	s0,0(sp)
+ 914              		.cfi_offset 1, -8
+ 915              		.cfi_offset 8, -16
+ 916 06c8 13040101 		addi	s0,sp,16
+ 917              		.cfi_def_cfa 8, 0
+  96:src/main.cpp  ****     Foo* f = new Foo;
+ 918              		.loc 1 96 47 is_stmt 0
+ 919 06cc 97000000 		call	_ZdlPv
+ 919      E7800000 
+ 920              	.LVL135:
+ 921 06d4 83308100 		ld	ra,8(sp)
+ 922              		.cfi_restore 1
+ 923 06d8 03340100 		ld	s0,0(sp)
+ 924              		.cfi_restore 8
+ 925              		.cfi_def_cfa 2, 16
+ 926 06dc 13010101 		addi	sp,sp,16
+ 927              		.cfi_def_cfa_offset 0
+ 928 06e0 67800000 		jr	ra
+ 929              		.cfi_endproc
+ 930              	.LFE7:
+ 932              		.section	.rodata.str1.8
+ 933 02a5 000000   		.align	3
+ 934              	.LC27:
+ 935 02a8 3D3D3D3D 		.string	"==== OS1 boot ====\n"
+ 935      204F5331 
+ 935      20626F6F 
+ 935      74203D3D 
+ 935      3D3D0A00 
+ 936 02bc 00000000 		.align	3
+ 937              	.LC28:
+ 938 02c0 48454150 		.string	"HEAP_START_ADDR = "
+ 938      5F535441 
+ 938      52545F41 
+ 938      44445220 
+ 938      3D2000
+ 939 02d3 00000000 		.align	3
+ 939      00
+ 940              	.LC29:
+ 941 02d8 48454150 		.string	"HEAP_END_ADDR   = "
+ 941      5F454E44 
+ 941      5F414444 
+ 941      52202020 
+ 941      3D2000
+ 942 02eb 00000000 		.align	3
+ 942      00
+ 943              	.LC30:
+ 944 02f0 48454150 		.string	"HEAP_SIZE       = "
+ 944      5F53495A 
+ 944      45202020 
+ 944      20202020 
+ 944      3D2000
+ 945 0303 00000000 		.align	3
+ 945      00
+GAS LISTING /tmp/ccbGazKg.s 			page 26
+
+
+ 946              	.LC31:
+ 947 0308 20627974 		.string	" bytes\n"
+ 947      65730A00 
+ 948              		.align	3
+ 949              	.LC32:
+ 950 0310 66726565 		.string	"free after init = "
+ 950      20616674 
+ 950      65722069 
+ 950      6E697420 
+ 950      3D2000
+ 951 0323 00000000 		.align	3
+ 951      00
+ 952              	.LC33:
+ 953 0328 0A737476 		.string	"\nstvec installed: "
+ 953      65632069 
+ 953      6E737461 
+ 953      6C6C6564 
+ 953      3A2000
+ 954 033b 00000000 		.align	3
+ 954      00
+ 955              	.LC34:
+ 956 0340 0A3D3D3D 		.string	"\n==== Task 1 tests: "
+ 956      3D205461 
+ 956      736B2031 
+ 956      20746573 
+ 956      74733A20 
+ 957 0355 000000   		.align	3
+ 958              	.LC35:
+ 959 0358 20706173 		.string	" passed ====\n"
+ 959      73656420 
+ 959      3D3D3D3D 
+ 959      0A00
+ 960 0366 0000     		.align	3
+ 961              	.LC36:
+ 962 0368 6F6E6520 		.string	"one or more tests failed"
+ 962      6F72206D 
+ 962      6F726520 
+ 962      74657374 
+ 962      73206661 
+ 963 0381 00000000 		.align	3
+ 963      000000
+ 964              	.LC37:
+ 965 0388 414C4C20 		.string	"ALL OK \342\200\224 halting QEMU\n"
+ 965      4F4B20E2 
+ 965      80942068 
+ 965      616C7469 
+ 965      6E672051 
+ 966              		.text
+ 967              		.align	2
+ 968              		.globl	main
+ 970              	main:
+ 971              	.LFB12:
+ 140:src/main.cpp  **** 
+ 141:src/main.cpp  **** // ---- entry ----------------------------------------------------------------
+ 142:src/main.cpp  **** 
+ 143:src/main.cpp  **** extern "C" void main() {
+ 972              		.loc 1 143 24 is_stmt 1
+GAS LISTING /tmp/ccbGazKg.s 			page 27
+
+
+ 973              		.cfi_startproc
+ 974 06e4 130101FE 		addi	sp,sp,-32
+ 975              		.cfi_def_cfa_offset 32
+ 976 06e8 233C1100 		sd	ra,24(sp)
+ 977 06ec 23388100 		sd	s0,16(sp)
+ 978 06f0 23349100 		sd	s1,8(sp)
+ 979 06f4 23302101 		sd	s2,0(sp)
+ 980              		.cfi_offset 1, -8
+ 981              		.cfi_offset 8, -16
+ 982              		.cfi_offset 9, -24
+ 983              		.cfi_offset 18, -32
+ 984 06f8 13040102 		addi	s0,sp,32
+ 985              		.cfi_def_cfa 8, 0
+ 144:src/main.cpp  ****     kputs("==== OS1 boot ====\n");
+ 986              		.loc 1 144 5
+ 987              		.loc 1 144 10 is_stmt 0
+ 988 06fc 17050000 		lla	a0,.LC27
+ 988      13050500 
+ 989 0704 97000000 		call	kputs
+ 989      E7800000 
+ 990              	.LVL136:
+ 145:src/main.cpp  ****     kputs("HEAP_START_ADDR = "); kputhex((uint64)HEAP_START_ADDR); kputc('\n');
+ 991              		.loc 1 145 5 is_stmt 1
+ 992              		.loc 1 145 10 is_stmt 0
+ 993 070c 17050000 		lla	a0,.LC28
+ 993      13050500 
+ 994 0714 97000000 		call	kputs
+ 994      E7800000 
+ 995              	.LVL137:
+ 996              		.loc 1 145 34 is_stmt 1
+ 997              		.loc 1 145 41 is_stmt 0
+ 998 071c 97040000 		lla	s1,HEAP_START_ADDR
+ 998      93840400 
+ 999 0724 03B50400 		ld	a0,0(s1)
+ 1000 0728 97000000 		call	kputhex
+ 1000      E7800000 
+ 1001              	.LVL138:
+ 1002              		.loc 1 145 68 is_stmt 1
+ 1003              		.loc 1 145 73 is_stmt 0
+ 1004 0730 1305A000 		li	a0,10
+ 1005 0734 97000000 		call	kputc
+ 1005      E7800000 
+ 1006              	.LVL139:
+ 146:src/main.cpp  ****     kputs("HEAP_END_ADDR   = "); kputhex((uint64)HEAP_END_ADDR);   kputc('\n');
+ 1007              		.loc 1 146 5 is_stmt 1
+ 1008              		.loc 1 146 10 is_stmt 0
+ 1009 073c 17050000 		lla	a0,.LC29
+ 1009      13050500 
+ 1010 0744 97000000 		call	kputs
+ 1010      E7800000 
+ 1011              	.LVL140:
+ 1012              		.loc 1 146 34 is_stmt 1
+ 1013              		.loc 1 146 41 is_stmt 0
+ 1014 074c 17090000 		lla	s2,HEAP_END_ADDR
+ 1014      13090900 
+ 1015 0754 03350900 		ld	a0,0(s2)
+ 1016 0758 97000000 		call	kputhex
+GAS LISTING /tmp/ccbGazKg.s 			page 28
+
+
+ 1016      E7800000 
+ 1017              	.LVL141:
+ 1018              		.loc 1 146 68 is_stmt 1
+ 1019              		.loc 1 146 73 is_stmt 0
+ 1020 0760 1305A000 		li	a0,10
+ 1021 0764 97000000 		call	kputc
+ 1021      E7800000 
+ 1022              	.LVL142:
+ 147:src/main.cpp  ****     kputs("HEAP_SIZE       = ");
+ 1023              		.loc 1 147 5 is_stmt 1
+ 1024              		.loc 1 147 10 is_stmt 0
+ 1025 076c 17050000 		lla	a0,.LC30
+ 1025      13050500 
+ 1026 0774 97000000 		call	kputs
+ 1026      E7800000 
+ 1027              	.LVL143:
+ 148:src/main.cpp  ****         kputdec((uint64)HEAP_END_ADDR - (uint64)HEAP_START_ADDR);  kputs(" bytes\n");
+ 1028              		.loc 1 148 9 is_stmt 1
+ 1029              		.loc 1 148 16 is_stmt 0
+ 1030 077c 03350900 		ld	a0,0(s2)
+ 1031 0780 83B70400 		ld	a5,0(s1)
+ 1032 0784 3305F540 		sub	a0,a0,a5
+ 1033 0788 97000000 		call	kputdec
+ 1033      E7800000 
+ 1034              	.LVL144:
+ 1035              		.loc 1 148 68 is_stmt 1
+ 1036              		.loc 1 148 73 is_stmt 0
+ 1037 0790 17050000 		lla	a0,.LC31
+ 1037      13050500 
+ 1038 0798 97000000 		call	kputs
+ 1038      E7800000 
+ 1039              	.LVL145:
+ 149:src/main.cpp  **** 
+ 150:src/main.cpp  ****     MemoryAllocator::init();
+ 1040              		.loc 1 150 5 is_stmt 1
+ 1041              		.loc 1 150 26 is_stmt 0
+ 1042 07a0 97000000 		call	_ZN15MemoryAllocator4initEv
+ 1042      E7800000 
+ 1043              	.LVL146:
+ 151:src/main.cpp  ****     kputs("free after init = "); kputdec(MemoryAllocator::total_free_bytes());
+ 1044              		.loc 1 151 5 is_stmt 1
+ 1045              		.loc 1 151 10 is_stmt 0
+ 1046 07a8 17050000 		lla	a0,.LC32
+ 1046      13050500 
+ 1047 07b0 97000000 		call	kputs
+ 1047      E7800000 
+ 1048              	.LVL147:
+ 1049              		.loc 1 151 34 is_stmt 1
+ 1050              		.loc 1 151 41 is_stmt 0
+ 1051 07b8 97000000 		call	_ZN15MemoryAllocator16total_free_bytesEv
+ 1051      E7800000 
+ 1052              	.LVL148:
+ 1053 07c0 97000000 		call	kputdec
+ 1053      E7800000 
+ 1054              	.LVL149:
+ 152:src/main.cpp  ****     kputs(" bytes\n");
+ 1055              		.loc 1 152 5 is_stmt 1
+GAS LISTING /tmp/ccbGazKg.s 			page 29
+
+
+ 1056              		.loc 1 152 10 is_stmt 0
+ 1057 07c8 17050000 		lla	a0,.LC31
+ 1057      13050500 
+ 1058 07d0 97000000 		call	kputs
+ 1058      E7800000 
+ 1059              	.LVL150:
+ 153:src/main.cpp  **** 
+ 154:src/main.cpp  ****     direct_tests();
+ 1060              		.loc 1 154 5 is_stmt 1
+ 1061              		.loc 1 154 17 is_stmt 0
+ 1062 07d8 97000000 		call	_ZL12direct_testsv
+ 1062      E7800000 
+ 1063              	.LVL151:
+ 155:src/main.cpp  **** 
+ 156:src/main.cpp  ****     // Install our trap vector and run the same tests through ecall.
+ 157:src/main.cpp  ****     WRITE_CSR(stvec, (uint64)&trap_entry);
+ 1064              		.loc 1 157 5 is_stmt 1
+ 1065              	.LBB16:
+ 1066              		.loc 1 157 5
+ 1067 07e0 97040000 		lla	s1,trap_entry
+ 1067      93840400 
+ 1068              	.LVL152:
+ 1069              		.loc 1 157 5
+ 1070              	 #APP
+ 1071              	# 157 "src/main.cpp" 1
+ 158              	    kputs("\nstvec installed: "); kputhex((uint64)&trap_entry); kputc('\n');
+ 1072              		csrw stvec, s1
+ 1073              	# 0 "" 2
+ 1074              	 #NO_APP
+ 1075              	.LBE16:
+ 1076              		.loc 1 158 5
+ 1077              		.loc 1 158 10 is_stmt 0
+ 1078 07ec 17050000 		lla	a0,.LC33
+ 1078      13050500 
+ 1079 07f4 97000000 		call	kputs
+ 1079      E7800000 
+ 1080              	.LVL153:
+ 1081              		.loc 1 158 35 is_stmt 1
+ 1082              		.loc 1 158 42 is_stmt 0
+ 1083 07fc 13850400 		mv	a0,s1
+ 1084 0800 97000000 		call	kputhex
+ 1084      E7800000 
+ 1085              	.LVL154:
+ 1086              		.loc 1 158 65 is_stmt 1
+ 1087              		.loc 1 158 70 is_stmt 0
+ 1088 0808 1305A000 		li	a0,10
+ 1089 080c 97000000 		call	kputc
+ 1089      E7800000 
+ 1090              	.LVL155:
+ 159:src/main.cpp  **** 
+ 160:src/main.cpp  ****     e2e_tests();
+ 1091              		.loc 1 160 5 is_stmt 1
+ 1092              		.loc 1 160 14 is_stmt 0
+ 1093 0814 97000000 		call	_ZL9e2e_testsv
+ 1093      E7800000 
+ 1094              	.LVL156:
+ 161:src/main.cpp  ****     stress_tests();
+GAS LISTING /tmp/ccbGazKg.s 			page 30
+
+
+ 1095              		.loc 1 161 5 is_stmt 1
+ 1096              		.loc 1 161 17 is_stmt 0
+ 1097 081c 97000000 		call	_ZL12stress_testsv
+ 1097      E7800000 
+ 1098              	.LVL157:
+ 162:src/main.cpp  **** 
+ 163:src/main.cpp  ****     kputs("\n==== Task 1 tests: ");
+ 1099              		.loc 1 163 5 is_stmt 1
+ 1100              		.loc 1 163 10 is_stmt 0
+ 1101 0824 17050000 		lla	a0,.LC34
+ 1101      13050500 
+ 1102 082c 97000000 		call	kputs
+ 1102      E7800000 
+ 1103              	.LVL158:
+ 164:src/main.cpp  ****     kputdec(tests_run - tests_failed); kputc('/'); kputdec(tests_run);
+ 1104              		.loc 1 164 5 is_stmt 1
+ 1105              		.loc 1 164 23 is_stmt 0
+ 1106 0834 17090000 		lla	s2,_ZL9tests_run
+ 1106      13090900 
+ 1107 083c 97040000 		lla	s1,_ZL12tests_failed
+ 1107      93840400 
+ 1108 0844 03250900 		lw	a0,0(s2)
+ 1109 0848 83A70400 		lw	a5,0(s1)
+ 1110              		.loc 1 164 12
+ 1111 084c 3B05F540 		subw	a0,a0,a5
+ 1112 0850 97000000 		call	kputdec
+ 1112      E7800000 
+ 1113              	.LVL159:
+ 1114              		.loc 1 164 40 is_stmt 1
+ 1115              		.loc 1 164 45 is_stmt 0
+ 1116 0858 1305F002 		li	a0,47
+ 1117 085c 97000000 		call	kputc
+ 1117      E7800000 
+ 1118              	.LVL160:
+ 1119              		.loc 1 164 52 is_stmt 1
+ 1120              		.loc 1 164 59 is_stmt 0
+ 1121 0864 03250900 		lw	a0,0(s2)
+ 1122 0868 97000000 		call	kputdec
+ 1122      E7800000 
+ 1123              	.LVL161:
+ 165:src/main.cpp  ****     kputs(" passed ====\n");
+ 1124              		.loc 1 165 5 is_stmt 1
+ 1125              		.loc 1 165 10 is_stmt 0
+ 1126 0870 17050000 		lla	a0,.LC35
+ 1126      13050500 
+ 1127 0878 97000000 		call	kputs
+ 1127      E7800000 
+ 1128              	.LVL162:
+ 166:src/main.cpp  **** 
+ 167:src/main.cpp  ****     if (tests_failed != 0) kpanic("one or more tests failed");
+ 1129              		.loc 1 167 5 is_stmt 1
+ 1130              		.loc 1 167 22 is_stmt 0
+ 1131 0880 83A70400 		lw	a5,0(s1)
+ 1132              		.loc 1 167 5
+ 1133 0884 638A0700 		beqz	a5,.L36
+ 1134              		.loc 1 167 28 is_stmt 1 discriminator 1
+ 1135              		.loc 1 167 34 is_stmt 0 discriminator 1
+GAS LISTING /tmp/ccbGazKg.s 			page 31
+
+
+ 1136 0888 17050000 		lla	a0,.LC36
+ 1136      13050500 
+ 1137 0890 97000000 		call	kpanic
+ 1137      E7800000 
+ 1138              	.LVL163:
+ 1139              	.L36:
+ 168:src/main.cpp  ****     kputs("ALL OK — halting QEMU\n");
+ 1140              		.loc 1 168 5 is_stmt 1
+ 1141              		.loc 1 168 10 is_stmt 0
+ 1142 0898 17050000 		lla	a0,.LC37
+ 1142      13050500 
+ 1143 08a0 97000000 		call	kputs
+ 1143      E7800000 
+ 1144              	.LVL164:
+ 169:src/main.cpp  ****     khalt();
+ 1145              		.loc 1 169 5 is_stmt 1
+ 1146              		.loc 1 169 10 is_stmt 0
+ 1147 08a8 97000000 		call	khalt
+ 1147      E7800000 
+ 1148              	.LVL165:
+ 1149              		.cfi_endproc
+ 1150              	.LFE12:
+ 1152              		.section	.rodata
+ 1153              		.align	3
+ 1154              		.set	.LANCHOR0,. + 0
+ 1157              	_ZTVZL9e2e_testsvE3Foo:
+ 1158 0000 00000000 		.dword	0
+ 1158      00000000 
+ 1159 0008 00000000 		.dword	0
+ 1159      00000000 
+ 1160 0010 00000000 		.dword	_ZZL9e2e_testsvEN3FooD1Ev
+ 1160      00000000 
+ 1161 0018 00000000 		.dword	_ZZL9e2e_testsvEN3FooD0Ev
+ 1161      00000000 
+ 1162              		.section	.sbss,"aw",@nobits
+ 1163              		.align	2
+ 1166              	_ZL12tests_failed:
+ 1167 0000 00000000 		.zero	4
+ 1170              	_ZL9tests_run:
+ 1171 0004 00000000 		.zero	4
+ 1172              		.text
+ 1173              	.Letext0:
+ 1174              		.file 2 "src/../lib/hw.h"
+ 1175              		.file 3 "src/../h/MemoryAllocator.hpp"
+ 1176              		.file 4 "src/../h/debug.hpp"
+ 1177              		.file 5 "src/../h/syscall_c.h"
+GAS LISTING /tmp/ccbGazKg.s 			page 32
+
+
+DEFINED SYMBOLS
+                            *ABS*:0000000000000000 main.cpp
+     /tmp/ccbGazKg.s:11     .text:0000000000000000 _ZL7in_heapPv
+     /tmp/ccbGazKg.s:15     .text:0000000000000000 .L0 
+     /tmp/ccbGazKg.s:17     .text:0000000000000000 .L0 
+     /tmp/ccbGazKg.s:18     .text:0000000000000004 .L0 
+     /tmp/ccbGazKg.s:20     .text:0000000000000008 .L0 
+     /tmp/ccbGazKg.s:22     .text:000000000000000c .L0 
+     /tmp/ccbGazKg.s:24     .text:000000000000000c .L0 
+     /tmp/ccbGazKg.s:25     .text:000000000000000c .L0 
+     /tmp/ccbGazKg.s:27     .text:0000000000000010 .L0 
+     /tmp/ccbGazKg.s:29     .text:0000000000000018 .L0 
+     /tmp/ccbGazKg.s:31     .text:000000000000001c .L0 
+     /tmp/ccbGazKg.s:33     .text:0000000000000024 .L0 
+     /tmp/ccbGazKg.s:35     .text:0000000000000028 .L0 
+     /tmp/ccbGazKg.s:49     .text:000000000000003c .L0 
+     /tmp/ccbGazKg.s:50     .text:0000000000000040 .L0 
+     /tmp/ccbGazKg.s:51     .text:0000000000000040 .L0 
+     /tmp/ccbGazKg.s:52     .text:0000000000000040 .L0 
+     /tmp/ccbGazKg.s:54     .text:0000000000000044 .L0 
+     /tmp/ccbGazKg.s:58     .text:0000000000000048 .L0 
+     /tmp/ccbGazKg.s:60     .text:0000000000000048 .L0 
+     /tmp/ccbGazKg.s:63     .text:0000000000000050 .L0 
+     /tmp/ccbGazKg.s:68     .text:0000000000000050 _ZZL9e2e_testsvEN3FooD2Ev
+     /tmp/ccbGazKg.s:71     .text:0000000000000050 .L0 
+     /tmp/ccbGazKg.s:73     .text:0000000000000050 .L0 
+     /tmp/ccbGazKg.s:74     .text:0000000000000054 .L0 
+     /tmp/ccbGazKg.s:76     .text:0000000000000058 .L0 
+     /tmp/ccbGazKg.s:78     .text:000000000000005c .L0 
+     /tmp/ccbGazKg.s:80     .text:000000000000005c .L0 
+     /tmp/ccbGazKg.s:81     .text:0000000000000060 .L0 
+     /tmp/ccbGazKg.s:82     .text:0000000000000060 .L0 
+     /tmp/ccbGazKg.s:84     .text:0000000000000064 .L0 
+     /tmp/ccbGazKg.s:86     .text:0000000000000068 .L0 
+     /tmp/ccbGazKg.s:68     .text:0000000000000050 _ZZL9e2e_testsvEN3FooD1Ev
+     /tmp/ccbGazKg.s:100    .text:0000000000000068 _ZL10check_boolPKcb
+     /tmp/ccbGazKg.s:103    .text:0000000000000068 .L0 
+     /tmp/ccbGazKg.s:105    .text:0000000000000068 .L0 
+     /tmp/ccbGazKg.s:106    .text:000000000000006c .L0 
+     /tmp/ccbGazKg.s:111    .text:000000000000007c .L0 
+     /tmp/ccbGazKg.s:112    .text:000000000000007c .L0 
+     /tmp/ccbGazKg.s:113    .text:000000000000007c .L0 
+     /tmp/ccbGazKg.s:114    .text:000000000000007c .L0 
+     /tmp/ccbGazKg.s:116    .text:0000000000000080 .L0 
+     /tmp/ccbGazKg.s:120    .text:0000000000000088 .L0 
+     /tmp/ccbGazKg.s:1170   .sbss:0000000000000004 _ZL9tests_run
+     /tmp/ccbGazKg.s:121    .text:0000000000000088 .L0 
+     /tmp/ccbGazKg.s:126    .text:000000000000009c .L0 
+     /tmp/ccbGazKg.s:127    .text:000000000000009c .L0 
+     /tmp/ccbGazKg.s:132    .text:00000000000000a8 .L0 
+     /tmp/ccbGazKg.s:135    .text:00000000000000b0 .L0 
+     /tmp/ccbGazKg.s:136    .text:00000000000000b0 .L0 
+     /tmp/ccbGazKg.s:140    .text:00000000000000bc .L0 
+     /tmp/ccbGazKg.s:141    .text:00000000000000bc .L0 
+     /tmp/ccbGazKg.s:145    .text:00000000000000c8 .L0 
+     /tmp/ccbGazKg.s:147    .text:00000000000000cc .L0 
+     /tmp/ccbGazKg.s:1166   .sbss:0000000000000000 _ZL12tests_failed
+GAS LISTING /tmp/ccbGazKg.s 			page 33
+
+
+     /tmp/ccbGazKg.s:148    .text:00000000000000cc .L0 
+     /tmp/ccbGazKg.s:154    .text:00000000000000e0 .L0 
+     /tmp/ccbGazKg.s:155    .text:00000000000000e4 .L0 
+     /tmp/ccbGazKg.s:156    .text:00000000000000e4 .L0 
+     /tmp/ccbGazKg.s:158    .text:00000000000000e8 .L0 
+     /tmp/ccbGazKg.s:159    .text:00000000000000e8 .L0 
+     /tmp/ccbGazKg.s:161    .text:00000000000000ec .L0 
+     /tmp/ccbGazKg.s:163    .text:00000000000000f0 .L0 
+     /tmp/ccbGazKg.s:166    .text:00000000000000f4 .L0 
+     /tmp/ccbGazKg.s:170    .text:00000000000000f8 .L0 
+     /tmp/ccbGazKg.s:172    .text:00000000000000f8 .L0 
+     /tmp/ccbGazKg.s:175    .text:0000000000000104 .L0 
+     /tmp/ccbGazKg.s:218    .text:0000000000000104 _ZL12direct_testsv
+     /tmp/ccbGazKg.s:221    .text:0000000000000104 .L0 
+     /tmp/ccbGazKg.s:222    .text:0000000000000104 .L0 
+     /tmp/ccbGazKg.s:223    .text:0000000000000108 .L0 
+     /tmp/ccbGazKg.s:231    .text:0000000000000124 .L0 
+     /tmp/ccbGazKg.s:232    .text:0000000000000124 .L0 
+     /tmp/ccbGazKg.s:233    .text:0000000000000124 .L0 
+     /tmp/ccbGazKg.s:234    .text:0000000000000124 .L0 
+     /tmp/ccbGazKg.s:235    .text:0000000000000124 .L0 
+     /tmp/ccbGazKg.s:236    .text:0000000000000124 .L0 
+     /tmp/ccbGazKg.s:237    .text:0000000000000124 .L0 
+     /tmp/ccbGazKg.s:239    .text:0000000000000128 .L0 
+     /tmp/ccbGazKg.s:241    .text:0000000000000128 .L0 
+     /tmp/ccbGazKg.s:242    .text:0000000000000128 .L0 
+     /tmp/ccbGazKg.s:246    .text:0000000000000138 .L0 
+     /tmp/ccbGazKg.s:247    .text:0000000000000138 .L0 
+     /tmp/ccbGazKg.s:250    .text:0000000000000140 .L0 
+     /tmp/ccbGazKg.s:251    .text:0000000000000140 .L0 
+     /tmp/ccbGazKg.s:256    .text:000000000000014c .L0 
+     /tmp/ccbGazKg.s:257    .text:000000000000014c .L0 
+     /tmp/ccbGazKg.s:264    .text:000000000000015c .L0 
+     /tmp/ccbGazKg.s:265    .text:000000000000015c .L0 
+     /tmp/ccbGazKg.s:271    .text:000000000000016c .L0 
+     /tmp/ccbGazKg.s:272    .text:000000000000016c .L0 
+     /tmp/ccbGazKg.s:279    .text:000000000000017c .L0 
+     /tmp/ccbGazKg.s:280    .text:000000000000017c .L0 
+     /tmp/ccbGazKg.s:289    .text:000000000000019c .L0 
+     /tmp/ccbGazKg.s:290    .text:000000000000019c .L0 
+     /tmp/ccbGazKg.s:298    .text:00000000000001bc .L0 
+     /tmp/ccbGazKg.s:299    .text:00000000000001bc .L0 
+     /tmp/ccbGazKg.s:307    .text:00000000000001dc .L0 
+     /tmp/ccbGazKg.s:308    .text:00000000000001dc .L0 
+     /tmp/ccbGazKg.s:310    .text:00000000000001e0 .L0 
+     /tmp/ccbGazKg.s:315    .text:00000000000001f4 .L0 
+     /tmp/ccbGazKg.s:316    .text:00000000000001f4 .L0 
+     /tmp/ccbGazKg.s:318    .text:00000000000001f8 .L0 
+     /tmp/ccbGazKg.s:323    .text:000000000000020c .L0 
+     /tmp/ccbGazKg.s:324    .text:000000000000020c .L0 
+     /tmp/ccbGazKg.s:326    .text:0000000000000210 .L0 
+     /tmp/ccbGazKg.s:331    .text:0000000000000224 .L0 
+     /tmp/ccbGazKg.s:332    .text:0000000000000224 .L0 
+     /tmp/ccbGazKg.s:335    .text:000000000000022c .L0 
+     /tmp/ccbGazKg.s:336    .text:000000000000022c .L0 
+     /tmp/ccbGazKg.s:340    .text:0000000000000238 .L0 
+     /tmp/ccbGazKg.s:341    .text:0000000000000238 .L0 
+GAS LISTING /tmp/ccbGazKg.s 			page 34
+
+
+     /tmp/ccbGazKg.s:347    .text:0000000000000248 .L0 
+     /tmp/ccbGazKg.s:348    .text:0000000000000248 .L0 
+     /tmp/ccbGazKg.s:355    .text:0000000000000260 .L0 
+     /tmp/ccbGazKg.s:356    .text:0000000000000260 .L0 
+     /tmp/ccbGazKg.s:360    .text:000000000000026c .L0 
+     /tmp/ccbGazKg.s:361    .text:000000000000026c .L0 
+     /tmp/ccbGazKg.s:365    .text:0000000000000278 .L0 
+     /tmp/ccbGazKg.s:366    .text:0000000000000278 .L0 
+     /tmp/ccbGazKg.s:370    .text:0000000000000284 .L0 
+     /tmp/ccbGazKg.s:371    .text:0000000000000284 .L0 
+     /tmp/ccbGazKg.s:374    .text:000000000000028c .L0 
+     /tmp/ccbGazKg.s:375    .text:000000000000028c .L0 
+     /tmp/ccbGazKg.s:378    .text:0000000000000294 .L0 
+     /tmp/ccbGazKg.s:384    .text:00000000000002ac .L0 
+     /tmp/ccbGazKg.s:385    .text:00000000000002ac .L0 
+     /tmp/ccbGazKg.s:389    .text:00000000000002b8 .L0 
+     /tmp/ccbGazKg.s:394    .text:00000000000002cc .L0 
+     /tmp/ccbGazKg.s:395    .text:00000000000002cc .L0 
+     /tmp/ccbGazKg.s:401    .text:00000000000002e0 .L0 
+     /tmp/ccbGazKg.s:407    .text:00000000000002f8 .L0 
+     /tmp/ccbGazKg.s:408    .text:00000000000002f8 .L0 
+     /tmp/ccbGazKg.s:412    .text:0000000000000304 .L0 
+     /tmp/ccbGazKg.s:417    .text:0000000000000318 .L0 
+     /tmp/ccbGazKg.s:418    .text:000000000000031c .L0 
+     /tmp/ccbGazKg.s:420    .text:0000000000000320 .L0 
+     /tmp/ccbGazKg.s:421    .text:0000000000000320 .L0 
+     /tmp/ccbGazKg.s:423    .text:0000000000000324 .L0 
+     /tmp/ccbGazKg.s:426    .text:0000000000000328 .L0 
+     /tmp/ccbGazKg.s:429    .text:000000000000032c .L0 
+     /tmp/ccbGazKg.s:432    .text:0000000000000330 .L0 
+     /tmp/ccbGazKg.s:435    .text:0000000000000334 .L0 
+     /tmp/ccbGazKg.s:438    .text:0000000000000338 .L0 
+     /tmp/ccbGazKg.s:440    .text:000000000000033c .L0 
+     /tmp/ccbGazKg.s:462    .text:000000000000033c _ZL12stress_testsv
+     /tmp/ccbGazKg.s:465    .text:000000000000033c .L0 
+     /tmp/ccbGazKg.s:466    .text:000000000000033c .L0 
+     /tmp/ccbGazKg.s:467    .text:0000000000000340 .L0 
+     /tmp/ccbGazKg.s:473    .text:0000000000000354 .L0 
+     /tmp/ccbGazKg.s:474    .text:0000000000000354 .L0 
+     /tmp/ccbGazKg.s:475    .text:0000000000000354 .L0 
+     /tmp/ccbGazKg.s:476    .text:0000000000000354 .L0 
+     /tmp/ccbGazKg.s:477    .text:0000000000000354 .L0 
+     /tmp/ccbGazKg.s:479    .text:0000000000000358 .L0 
+     /tmp/ccbGazKg.s:481    .text:0000000000000358 .L0 
+     /tmp/ccbGazKg.s:482    .text:0000000000000358 .L0 
+     /tmp/ccbGazKg.s:486    .text:0000000000000368 .L0 
+     /tmp/ccbGazKg.s:487    .text:0000000000000368 .L0 
+     /tmp/ccbGazKg.s:492    .text:0000000000000374 .L0 
+     /tmp/ccbGazKg.s:495    .text:0000000000000378 .L0 
+     /tmp/ccbGazKg.s:500    .text:000000000000037c .L0 
+     /tmp/ccbGazKg.s:503    .text:0000000000000384 .L0 
+     /tmp/ccbGazKg.s:504    .text:0000000000000384 .L0 
+     /tmp/ccbGazKg.s:508    .text:0000000000000390 .L0 
+     /tmp/ccbGazKg.s:513    .text:00000000000003a0 .L0 
+     /tmp/ccbGazKg.s:515    .text:00000000000003a4 .L0 
+     /tmp/ccbGazKg.s:516    .text:00000000000003a4 .L0 
+     /tmp/ccbGazKg.s:519    .text:00000000000003a8 .L0 
+GAS LISTING /tmp/ccbGazKg.s 			page 35
+
+
+     /tmp/ccbGazKg.s:526    .text:00000000000003b0 .L0 
+     /tmp/ccbGazKg.s:527    .text:00000000000003b0 .L0 
+     /tmp/ccbGazKg.s:531    .text:00000000000003c0 .L0 
+     /tmp/ccbGazKg.s:532    .text:00000000000003c0 .L0 
+     /tmp/ccbGazKg.s:536    .text:00000000000003cc .L0 
+     /tmp/ccbGazKg.s:537    .text:00000000000003cc .L0 
+     /tmp/ccbGazKg.s:541    .text:00000000000003d8 .L0 
+     /tmp/ccbGazKg.s:542    .text:00000000000003d8 .L0 
+     /tmp/ccbGazKg.s:549    .text:00000000000003f0 .L0 
+     /tmp/ccbGazKg.s:553    .text:00000000000003f4 .L0 
+     /tmp/ccbGazKg.s:555    .text:00000000000003f8 .L0 
+     /tmp/ccbGazKg.s:556    .text:00000000000003f8 .L0 
+     /tmp/ccbGazKg.s:563    .text:0000000000000410 .L0 
+     /tmp/ccbGazKg.s:570    .text:0000000000000418 .L0 
+     /tmp/ccbGazKg.s:571    .text:0000000000000418 .L0 
+     /tmp/ccbGazKg.s:574    .text:0000000000000420 .L0 
+     /tmp/ccbGazKg.s:575    .text:0000000000000420 .L0 
+     /tmp/ccbGazKg.s:578    .text:0000000000000428 .L0 
+     /tmp/ccbGazKg.s:585    .text:0000000000000440 .L0 
+     /tmp/ccbGazKg.s:591    .text:0000000000000448 .L0 
+     /tmp/ccbGazKg.s:592    .text:0000000000000448 .L0 
+     /tmp/ccbGazKg.s:596    .text:0000000000000454 .L0 
+     /tmp/ccbGazKg.s:601    .text:0000000000000464 .L0 
+     /tmp/ccbGazKg.s:605    .text:0000000000000468 .L0 
+     /tmp/ccbGazKg.s:610    .text:0000000000000470 .L0 
+     /tmp/ccbGazKg.s:616    .text:0000000000000478 .L0 
+     /tmp/ccbGazKg.s:617    .text:0000000000000478 .L0 
+     /tmp/ccbGazKg.s:624    .text:0000000000000490 .L0 
+     /tmp/ccbGazKg.s:625    .text:0000000000000490 .L0 
+     /tmp/ccbGazKg.s:629    .text:0000000000000494 .L0 
+     /tmp/ccbGazKg.s:633    .text:000000000000049c .L0 
+     /tmp/ccbGazKg.s:634    .text:000000000000049c .L0 
+     /tmp/ccbGazKg.s:638    .text:00000000000004a4 .L0 
+     /tmp/ccbGazKg.s:642    .text:00000000000004a8 .L0 
+     /tmp/ccbGazKg.s:645    .text:00000000000004b0 .L0 
+     /tmp/ccbGazKg.s:646    .text:00000000000004b0 .L0 
+     /tmp/ccbGazKg.s:653    .text:00000000000004c8 .L0 
+     /tmp/ccbGazKg.s:654    .text:00000000000004c8 .L0 
+     /tmp/ccbGazKg.s:657    .text:00000000000004cc .L0 
+     /tmp/ccbGazKg.s:662    .text:00000000000004d0 .L0 
+     /tmp/ccbGazKg.s:663    .text:00000000000004d0 .L0 
+     /tmp/ccbGazKg.s:666    .text:00000000000004d8 .L0 
+     /tmp/ccbGazKg.s:667    .text:00000000000004d8 .L0 
+     /tmp/ccbGazKg.s:670    .text:00000000000004e0 .L0 
+     /tmp/ccbGazKg.s:676    .text:00000000000004f8 .L0 
+     /tmp/ccbGazKg.s:677    .text:00000000000004fc .L0 
+     /tmp/ccbGazKg.s:679    .text:0000000000000500 .L0 
+     /tmp/ccbGazKg.s:680    .text:0000000000000500 .L0 
+     /tmp/ccbGazKg.s:682    .text:0000000000000504 .L0 
+     /tmp/ccbGazKg.s:685    .text:0000000000000508 .L0 
+     /tmp/ccbGazKg.s:687    .text:000000000000050c .L0 
+     /tmp/ccbGazKg.s:690    .text:0000000000000510 .L0 
+     /tmp/ccbGazKg.s:692    .text:0000000000000514 .L0 
+     /tmp/ccbGazKg.s:723    .text:0000000000000514 _ZL9e2e_testsv
+     /tmp/ccbGazKg.s:726    .text:0000000000000514 .L0 
+     /tmp/ccbGazKg.s:727    .text:0000000000000514 .L0 
+     /tmp/ccbGazKg.s:728    .text:0000000000000518 .L0 
+GAS LISTING /tmp/ccbGazKg.s 			page 36
+
+
+     /tmp/ccbGazKg.s:735    .text:0000000000000530 .L0 
+     /tmp/ccbGazKg.s:736    .text:0000000000000530 .L0 
+     /tmp/ccbGazKg.s:737    .text:0000000000000530 .L0 
+     /tmp/ccbGazKg.s:738    .text:0000000000000530 .L0 
+     /tmp/ccbGazKg.s:739    .text:0000000000000530 .L0 
+     /tmp/ccbGazKg.s:740    .text:0000000000000530 .L0 
+     /tmp/ccbGazKg.s:742    .text:0000000000000534 .L0 
+     /tmp/ccbGazKg.s:744    .text:0000000000000534 .L0 
+     /tmp/ccbGazKg.s:745    .text:0000000000000534 .L0 
+     /tmp/ccbGazKg.s:749    .text:0000000000000544 .L0 
+     /tmp/ccbGazKg.s:750    .text:0000000000000544 .L0 
+     /tmp/ccbGazKg.s:755    .text:0000000000000550 .L0 
+     /tmp/ccbGazKg.s:756    .text:0000000000000550 .L0 
+     /tmp/ccbGazKg.s:763    .text:0000000000000560 .L0 
+     /tmp/ccbGazKg.s:764    .text:0000000000000560 .L0 
+     /tmp/ccbGazKg.s:770    .text:0000000000000570 .L0 
+     /tmp/ccbGazKg.s:771    .text:0000000000000570 .L0 
+     /tmp/ccbGazKg.s:780    .text:0000000000000590 .L0 
+     /tmp/ccbGazKg.s:781    .text:0000000000000590 .L0 
+     /tmp/ccbGazKg.s:789    .text:00000000000005b0 .L0 
+     /tmp/ccbGazKg.s:790    .text:00000000000005b0 .L0 
+     /tmp/ccbGazKg.s:794    .text:00000000000005bc .L0 
+     /tmp/ccbGazKg.s:795    .text:00000000000005bc .L0 
+     /tmp/ccbGazKg.s:801    .text:00000000000005d0 .L0 
+     /tmp/ccbGazKg.s:802    .text:00000000000005d0 .L0 
+     /tmp/ccbGazKg.s:808    .text:00000000000005e0 .L0 
+     /tmp/ccbGazKg.s:809    .text:00000000000005e0 .L0 
+     /tmp/ccbGazKg.s:816    .text:00000000000005f8 .L0 
+     /tmp/ccbGazKg.s:817    .text:00000000000005f8 .L0 
+     /tmp/ccbGazKg.s:821    .text:0000000000000604 .L0 
+     /tmp/ccbGazKg.s:822    .text:0000000000000604 .L0 
+     /tmp/ccbGazKg.s:826    .text:0000000000000610 .L0 
+     /tmp/ccbGazKg.s:827    .text:0000000000000610 .L0 
+     /tmp/ccbGazKg.s:830    .text:0000000000000618 .L0 
+     /tmp/ccbGazKg.s:836    .text:0000000000000630 .L0 
+     /tmp/ccbGazKg.s:837    .text:0000000000000630 .L0 
+     /tmp/ccbGazKg.s:838    .text:0000000000000630 .L0 
+     /tmp/ccbGazKg.s:846    .text:0000000000000640 .L0 
+     /tmp/ccbGazKg.s:852    .text:000000000000064c .L0 
+     /tmp/ccbGazKg.s:853    .text:000000000000064c .L0 
+     /tmp/ccbGazKg.s:860    .text:0000000000000668 .L0 
+     /tmp/ccbGazKg.s:861    .text:0000000000000668 .L0 
+     /tmp/ccbGazKg.s:863    .text:000000000000066c .L0 
+     /tmp/ccbGazKg.s:870    .text:000000000000067c .L0 
+     /tmp/ccbGazKg.s:871    .text:000000000000067c .L0 
+     /tmp/ccbGazKg.s:874    .text:0000000000000684 .L0 
+     /tmp/ccbGazKg.s:880    .text:000000000000069c .L0 
+     /tmp/ccbGazKg.s:881    .text:00000000000006a0 .L0 
+     /tmp/ccbGazKg.s:883    .text:00000000000006a4 .L0 
+     /tmp/ccbGazKg.s:884    .text:00000000000006a4 .L0 
+     /tmp/ccbGazKg.s:886    .text:00000000000006a8 .L0 
+     /tmp/ccbGazKg.s:889    .text:00000000000006ac .L0 
+     /tmp/ccbGazKg.s:892    .text:00000000000006b0 .L0 
+     /tmp/ccbGazKg.s:895    .text:00000000000006b4 .L0 
+     /tmp/ccbGazKg.s:898    .text:00000000000006b8 .L0 
+     /tmp/ccbGazKg.s:900    .text:00000000000006bc .L0 
+     /tmp/ccbGazKg.s:905    .text:00000000000006bc _ZZL9e2e_testsvEN3FooD0Ev
+GAS LISTING /tmp/ccbGazKg.s 			page 37
+
+
+     /tmp/ccbGazKg.s:908    .text:00000000000006bc .L0 
+     /tmp/ccbGazKg.s:910    .text:00000000000006bc .L0 
+     /tmp/ccbGazKg.s:911    .text:00000000000006c0 .L0 
+     /tmp/ccbGazKg.s:914    .text:00000000000006c8 .L0 
+     /tmp/ccbGazKg.s:915    .text:00000000000006c8 .L0 
+     /tmp/ccbGazKg.s:917    .text:00000000000006cc .L0 
+     /tmp/ccbGazKg.s:919    .text:00000000000006cc .L0 
+     /tmp/ccbGazKg.s:922    .text:00000000000006d8 .L0 
+     /tmp/ccbGazKg.s:924    .text:00000000000006dc .L0 
+     /tmp/ccbGazKg.s:925    .text:00000000000006dc .L0 
+     /tmp/ccbGazKg.s:927    .text:00000000000006e0 .L0 
+     /tmp/ccbGazKg.s:929    .text:00000000000006e4 .L0 
+     /tmp/ccbGazKg.s:970    .text:00000000000006e4 main
+     /tmp/ccbGazKg.s:973    .text:00000000000006e4 .L0 
+     /tmp/ccbGazKg.s:974    .text:00000000000006e4 .L0 
+     /tmp/ccbGazKg.s:975    .text:00000000000006e8 .L0 
+     /tmp/ccbGazKg.s:980    .text:00000000000006f8 .L0 
+     /tmp/ccbGazKg.s:981    .text:00000000000006f8 .L0 
+     /tmp/ccbGazKg.s:982    .text:00000000000006f8 .L0 
+     /tmp/ccbGazKg.s:983    .text:00000000000006f8 .L0 
+     /tmp/ccbGazKg.s:985    .text:00000000000006fc .L0 
+     /tmp/ccbGazKg.s:987    .text:00000000000006fc .L0 
+     /tmp/ccbGazKg.s:988    .text:00000000000006fc .L0 
+     /tmp/ccbGazKg.s:992    .text:000000000000070c .L0 
+     /tmp/ccbGazKg.s:993    .text:000000000000070c .L0 
+     /tmp/ccbGazKg.s:997    .text:000000000000071c .L0 
+     /tmp/ccbGazKg.s:998    .text:000000000000071c .L0 
+     /tmp/ccbGazKg.s:1003   .text:0000000000000730 .L0 
+     /tmp/ccbGazKg.s:1004   .text:0000000000000730 .L0 
+     /tmp/ccbGazKg.s:1008   .text:000000000000073c .L0 
+     /tmp/ccbGazKg.s:1009   .text:000000000000073c .L0 
+     /tmp/ccbGazKg.s:1013   .text:000000000000074c .L0 
+     /tmp/ccbGazKg.s:1014   .text:000000000000074c .L0 
+     /tmp/ccbGazKg.s:1019   .text:0000000000000760 .L0 
+     /tmp/ccbGazKg.s:1020   .text:0000000000000760 .L0 
+     /tmp/ccbGazKg.s:1024   .text:000000000000076c .L0 
+     /tmp/ccbGazKg.s:1025   .text:000000000000076c .L0 
+     /tmp/ccbGazKg.s:1029   .text:000000000000077c .L0 
+     /tmp/ccbGazKg.s:1030   .text:000000000000077c .L0 
+     /tmp/ccbGazKg.s:1036   .text:0000000000000790 .L0 
+     /tmp/ccbGazKg.s:1037   .text:0000000000000790 .L0 
+     /tmp/ccbGazKg.s:1041   .text:00000000000007a0 .L0 
+     /tmp/ccbGazKg.s:1042   .text:00000000000007a0 .L0 
+     /tmp/ccbGazKg.s:1045   .text:00000000000007a8 .L0 
+     /tmp/ccbGazKg.s:1046   .text:00000000000007a8 .L0 
+     /tmp/ccbGazKg.s:1050   .text:00000000000007b8 .L0 
+     /tmp/ccbGazKg.s:1051   .text:00000000000007b8 .L0 
+     /tmp/ccbGazKg.s:1056   .text:00000000000007c8 .L0 
+     /tmp/ccbGazKg.s:1057   .text:00000000000007c8 .L0 
+     /tmp/ccbGazKg.s:1061   .text:00000000000007d8 .L0 
+     /tmp/ccbGazKg.s:1062   .text:00000000000007d8 .L0 
+     /tmp/ccbGazKg.s:1066   .text:00000000000007e0 .L0 
+     /tmp/ccbGazKg.s:1067   .text:00000000000007e0 .L0 
+        src/main.cpp:157    .text:00000000000007e8 .L0 
+     /tmp/ccbGazKg.s:1077   .text:00000000000007ec .L0 
+     /tmp/ccbGazKg.s:1078   .text:00000000000007ec .L0 
+     /tmp/ccbGazKg.s:1082   .text:00000000000007fc .L0 
+GAS LISTING /tmp/ccbGazKg.s 			page 38
+
+
+     /tmp/ccbGazKg.s:1083   .text:00000000000007fc .L0 
+     /tmp/ccbGazKg.s:1087   .text:0000000000000808 .L0 
+     /tmp/ccbGazKg.s:1088   .text:0000000000000808 .L0 
+     /tmp/ccbGazKg.s:1092   .text:0000000000000814 .L0 
+     /tmp/ccbGazKg.s:1093   .text:0000000000000814 .L0 
+     /tmp/ccbGazKg.s:1096   .text:000000000000081c .L0 
+     /tmp/ccbGazKg.s:1097   .text:000000000000081c .L0 
+     /tmp/ccbGazKg.s:1100   .text:0000000000000824 .L0 
+     /tmp/ccbGazKg.s:1101   .text:0000000000000824 .L0 
+     /tmp/ccbGazKg.s:1105   .text:0000000000000834 .L0 
+     /tmp/ccbGazKg.s:1106   .text:0000000000000834 .L0 
+     /tmp/ccbGazKg.s:1111   .text:000000000000084c .L0 
+     /tmp/ccbGazKg.s:1115   .text:0000000000000858 .L0 
+     /tmp/ccbGazKg.s:1116   .text:0000000000000858 .L0 
+     /tmp/ccbGazKg.s:1120   .text:0000000000000864 .L0 
+     /tmp/ccbGazKg.s:1121   .text:0000000000000864 .L0 
+     /tmp/ccbGazKg.s:1125   .text:0000000000000870 .L0 
+     /tmp/ccbGazKg.s:1126   .text:0000000000000870 .L0 
+     /tmp/ccbGazKg.s:1130   .text:0000000000000880 .L0 
+     /tmp/ccbGazKg.s:1131   .text:0000000000000880 .L0 
+     /tmp/ccbGazKg.s:1133   .text:0000000000000884 .L0 
+     /tmp/ccbGazKg.s:1135   .text:0000000000000888 .L0 
+     /tmp/ccbGazKg.s:1136   .text:0000000000000888 .L0 
+     /tmp/ccbGazKg.s:1141   .text:0000000000000898 .L0 
+     /tmp/ccbGazKg.s:1142   .text:0000000000000898 .L0 
+     /tmp/ccbGazKg.s:1146   .text:00000000000008a8 .L0 
+     /tmp/ccbGazKg.s:1147   .text:00000000000008a8 .L0 
+     /tmp/ccbGazKg.s:1149   .text:00000000000008b0 .L0 
+     /tmp/ccbGazKg.s:1154   .rodata:0000000000000000 .LANCHOR0
+     /tmp/ccbGazKg.s:1157   .rodata:0000000000000000 _ZTVZL9e2e_testsvE3Foo
+     /tmp/ccbGazKg.s:1178   .text:00000000000008b0 .L0 
+     /tmp/ccbGazKg.s:27     .text:0000000000000010 .L0 
+     /tmp/ccbGazKg.s:31     .text:000000000000001c .L0 
+     /tmp/ccbGazKg.s:121    .text:0000000000000088 .L0 
+     /tmp/ccbGazKg.s:95     .rodata.str1.8:0000000000000010 .LC1
+     /tmp/ccbGazKg.s:128    .text:00000000000000a0 .L0 
+     /tmp/ccbGazKg.s:148    .text:00000000000000cc .L0 
+     /tmp/ccbGazKg.s:92     .rodata.str1.8:0000000000000000 .LC0
+     /tmp/ccbGazKg.s:172    .text:00000000000000f8 .L0 
+     /tmp/ccbGazKg.s:180    .rodata.str1.8:0000000000000020 .LC2
+     /tmp/ccbGazKg.s:242    .text:0000000000000128 .L0 
+     /tmp/ccbGazKg.s:183    .rodata.str1.8:0000000000000048 .LC3
+     /tmp/ccbGazKg.s:285    .text:000000000000018c .L0 
+     /tmp/ccbGazKg.s:186    .rodata.str1.8:0000000000000060 .LC4
+     /tmp/ccbGazKg.s:294    .text:00000000000001ac .L0 
+     /tmp/ccbGazKg.s:189    .rodata.str1.8:0000000000000078 .LC5
+     /tmp/ccbGazKg.s:303    .text:00000000000001cc .L0 
+     /tmp/ccbGazKg.s:192    .rodata.str1.8:0000000000000090 .LC6
+     /tmp/ccbGazKg.s:311    .text:00000000000001e4 .L0 
+     /tmp/ccbGazKg.s:195    .rodata.str1.8:00000000000000a8 .LC7
+     /tmp/ccbGazKg.s:319    .text:00000000000001fc .L0 
+     /tmp/ccbGazKg.s:198    .rodata.str1.8:00000000000000c0 .LC8
+     /tmp/ccbGazKg.s:327    .text:0000000000000214 .L0 
+     /tmp/ccbGazKg.s:201    .rodata.str1.8:00000000000000d8 .LC9
+     /tmp/ccbGazKg.s:350    .text:0000000000000250 .L0 
+     /tmp/ccbGazKg.s:204    .rodata.str1.8:00000000000000f0 .LC10
+     /tmp/ccbGazKg.s:380    .text:000000000000029c .L0 
+GAS LISTING /tmp/ccbGazKg.s 			page 39
+
+
+     /tmp/ccbGazKg.s:207    .rodata.str1.8:0000000000000108 .LC11
+     /tmp/ccbGazKg.s:390    .text:00000000000002bc .L0 
+     /tmp/ccbGazKg.s:210    .rodata.str1.8:0000000000000118 .LC12
+     /tmp/ccbGazKg.s:403    .text:00000000000002e8 .L0 
+     /tmp/ccbGazKg.s:213    .rodata.str1.8:0000000000000130 .LC13
+     /tmp/ccbGazKg.s:413    .text:0000000000000308 .L0 
+     /tmp/ccbGazKg.s:445    .rodata.str1.8:0000000000000148 .LC14
+     /tmp/ccbGazKg.s:482    .text:0000000000000358 .L0 
+     /tmp/ccbGazKg.s:448    .rodata.str1.8:0000000000000158 .LC15
+     /tmp/ccbGazKg.s:527    .text:00000000000003b0 .L0 
+     /tmp/ccbGazKg.s:451    .rodata.str1.8:0000000000000178 .LC16
+     /tmp/ccbGazKg.s:544    .text:00000000000003e0 .L0 
+     /tmp/ccbGazKg.s:454    .rodata.str1.8:0000000000000190 .LC17
+     /tmp/ccbGazKg.s:580    .text:0000000000000430 .L0 
+     /tmp/ccbGazKg.s:457    .rodata.str1.8:00000000000001b0 .LC18
+     /tmp/ccbGazKg.s:672    .text:00000000000004e8 .L0 
+     /tmp/ccbGazKg.s:697    .rodata.str1.8:00000000000001d8 .LC19
+     /tmp/ccbGazKg.s:745    .text:0000000000000534 .L0 
+     /tmp/ccbGazKg.s:700    .rodata.str1.8:0000000000000208 .LC20
+     /tmp/ccbGazKg.s:776    .text:0000000000000580 .L0 
+     /tmp/ccbGazKg.s:703    .rodata.str1.8:0000000000000220 .LC21
+     /tmp/ccbGazKg.s:785    .text:00000000000005a0 .L0 
+     /tmp/ccbGazKg.s:706    .rodata.str1.8:0000000000000238 .LC22
+     /tmp/ccbGazKg.s:796    .text:00000000000005c0 .L0 
+     /tmp/ccbGazKg.s:709    .rodata.str1.8:0000000000000250 .LC23
+     /tmp/ccbGazKg.s:811    .text:00000000000005e8 .L0 
+     /tmp/ccbGazKg.s:712    .rodata.str1.8:0000000000000260 .LC24
+     /tmp/ccbGazKg.s:832    .text:0000000000000620 .L0 
+     /tmp/ccbGazKg.s:846    .text:0000000000000640 .L0 
+     /tmp/ccbGazKg.s:715    .rodata.str1.8:0000000000000280 .LC25
+     /tmp/ccbGazKg.s:856    .text:0000000000000658 .L0 
+     /tmp/ccbGazKg.s:718    .rodata.str1.8:0000000000000290 .LC26
+     /tmp/ccbGazKg.s:876    .text:000000000000068c .L0 
+     /tmp/ccbGazKg.s:934    .rodata.str1.8:00000000000002a8 .LC27
+     /tmp/ccbGazKg.s:988    .text:00000000000006fc .L0 
+     /tmp/ccbGazKg.s:937    .rodata.str1.8:00000000000002c0 .LC28
+     /tmp/ccbGazKg.s:993    .text:000000000000070c .L0 
+     /tmp/ccbGazKg.s:998    .text:000000000000071c .L0 
+     /tmp/ccbGazKg.s:940    .rodata.str1.8:00000000000002d8 .LC29
+     /tmp/ccbGazKg.s:1009   .text:000000000000073c .L0 
+     /tmp/ccbGazKg.s:1014   .text:000000000000074c .L0 
+     /tmp/ccbGazKg.s:943    .rodata.str1.8:00000000000002f0 .LC30
+     /tmp/ccbGazKg.s:1025   .text:000000000000076c .L0 
+     /tmp/ccbGazKg.s:946    .rodata.str1.8:0000000000000308 .LC31
+     /tmp/ccbGazKg.s:1037   .text:0000000000000790 .L0 
+     /tmp/ccbGazKg.s:949    .rodata.str1.8:0000000000000310 .LC32
+     /tmp/ccbGazKg.s:1046   .text:00000000000007a8 .L0 
+     /tmp/ccbGazKg.s:1057   .text:00000000000007c8 .L0 
+     /tmp/ccbGazKg.s:1067   .text:00000000000007e0 .L0 
+     /tmp/ccbGazKg.s:952    .rodata.str1.8:0000000000000328 .LC33
+     /tmp/ccbGazKg.s:1078   .text:00000000000007ec .L0 
+     /tmp/ccbGazKg.s:955    .rodata.str1.8:0000000000000340 .LC34
+     /tmp/ccbGazKg.s:1101   .text:0000000000000824 .L0 
+     /tmp/ccbGazKg.s:1106   .text:0000000000000834 .L0 
+     /tmp/ccbGazKg.s:1107   .text:000000000000083c .L0 
+     /tmp/ccbGazKg.s:958    .rodata.str1.8:0000000000000358 .LC35
+     /tmp/ccbGazKg.s:1126   .text:0000000000000870 .L0 
+GAS LISTING /tmp/ccbGazKg.s 			page 40
+
+
+     /tmp/ccbGazKg.s:961    .rodata.str1.8:0000000000000368 .LC36
+     /tmp/ccbGazKg.s:1136   .text:0000000000000888 .L0 
+     /tmp/ccbGazKg.s:964    .rodata.str1.8:0000000000000388 .LC37
+     /tmp/ccbGazKg.s:1142   .text:0000000000000898 .L0 
+     /tmp/ccbGazKg.s:39     .text:0000000000000030 .L3
+     /tmp/ccbGazKg.s:44     .text:0000000000000038 .L4
+     /tmp/ccbGazKg.s:57     .text:0000000000000048 .L5
+     /tmp/ccbGazKg.s:47     .text:000000000000003c .L2
+     /tmp/ccbGazKg.s:169    .text:00000000000000f8 .L12
+     /tmp/ccbGazKg.s:152    .text:00000000000000e0 .L9
+     /tmp/ccbGazKg.s:130    .text:00000000000000a8 .L10
+     /tmp/ccbGazKg.s:523    .text:00000000000003b0 .L17
+     /tmp/ccbGazKg.s:496    .text:000000000000037c .L18
+     /tmp/ccbGazKg.s:567    .text:0000000000000418 .L19
+     /tmp/ccbGazKg.s:551    .text:00000000000003f4 .L20
+     /tmp/ccbGazKg.s:603    .text:0000000000000468 .L22
+     /tmp/ccbGazKg.s:589    .text:0000000000000448 .L28
+     /tmp/ccbGazKg.s:627    .text:0000000000000494 .L21
+     /tmp/ccbGazKg.s:614    .text:0000000000000478 .L29
+     /tmp/ccbGazKg.s:659    .text:00000000000004d0 .L24
+     /tmp/ccbGazKg.s:640    .text:00000000000004a8 .L25
+     /tmp/ccbGazKg.s:868    .text:000000000000067c .L31
+     /tmp/ccbGazKg.s:1139   .text:0000000000000898 .L36
+     /tmp/ccbGazKg.s:2917   .debug_abbrev:0000000000000000 .Ldebug_abbrev0
+     /tmp/ccbGazKg.s:4112   .debug_str:0000000000000067 .LASF55
+     /tmp/ccbGazKg.s:4168   .debug_str:00000000000002d6 .LASF56
+     /tmp/ccbGazKg.s:4122   .debug_str:000000000000016e .LASF57
+     /tmp/ccbGazKg.s:8      .text:0000000000000000 .Ltext0
+     /tmp/ccbGazKg.s:1173   .text:00000000000008b0 .Letext0
+     /tmp/ccbGazKg.s:4096   .debug_line:0000000000000000 .Ldebug_line0
+     /tmp/ccbGazKg.s:4170   .debug_str:00000000000002e3 .LASF0
+     /tmp/ccbGazKg.s:4146   .debug_str:0000000000000234 .LASF1
+     /tmp/ccbGazKg.s:4136   .debug_str:00000000000001fc .LASF2
+     /tmp/ccbGazKg.s:4118   .debug_str:0000000000000162 .LASF4
+     /tmp/ccbGazKg.s:4144   .debug_str:0000000000000222 .LASF3
+     /tmp/ccbGazKg.s:4106   .debug_str:000000000000004a .LASF5
+     /tmp/ccbGazKg.s:4100   .debug_str:000000000000000a .LASF6
+     /tmp/ccbGazKg.s:4130   .debug_str:00000000000001d4 .LASF7
+     /tmp/ccbGazKg.s:4182   .debug_str:0000000000000318 .LASF8
+     /tmp/ccbGazKg.s:4116   .debug_str:0000000000000154 .LASF9
+     /tmp/ccbGazKg.s:4232   .debug_str:0000000000000429 .LASF10
+     /tmp/ccbGazKg.s:4132   .debug_str:00000000000001e7 .LASF11
+     /tmp/ccbGazKg.s:4214   .debug_str:00000000000003dc .LASF12
+     /tmp/ccbGazKg.s:4192   .debug_str:000000000000036d .LASF13
+     /tmp/ccbGazKg.s:4150   .debug_str:0000000000000252 .LASF14
+     /tmp/ccbGazKg.s:4126   .debug_str:00000000000001b8 .LASF15
+     /tmp/ccbGazKg.s:4186   .debug_str:0000000000000332 .LASF16
+     /tmp/ccbGazKg.s:4104   .debug_str:000000000000003a .LASF58
+     /tmp/ccbGazKg.s:4226   .debug_str:0000000000000415 .LASF59
+     /tmp/ccbGazKg.s:4108   .debug_str:0000000000000051 .LASF17
+     /tmp/ccbGazKg.s:4178   .debug_str:000000000000030b .LASF18
+     /tmp/ccbGazKg.s:4124   .debug_str:00000000000001b3 .LASF23
+     /tmp/ccbGazKg.s:4190   .debug_str:0000000000000351 .LASF25
+     /tmp/ccbGazKg.s:4210   .debug_str:00000000000003d0 .LASF19
+     /tmp/ccbGazKg.s:4102   .debug_str:000000000000001d .LASF21
+     /tmp/ccbGazKg.s:4194   .debug_str:000000000000037d .LASF20
+     /tmp/ccbGazKg.s:4152   .debug_str:000000000000025e .LASF22
+GAS LISTING /tmp/ccbGazKg.s 			page 41
+
+
+     /tmp/ccbGazKg.s:4128   .debug_str:00000000000001ce .LASF24
+     /tmp/ccbGazKg.s:4160   .debug_str:000000000000029f .LASF26
+     /tmp/ccbGazKg.s:4110   .debug_str:0000000000000056 .LASF60
+     /tmp/ccbGazKg.s:4114   .debug_str:000000000000012b .LASF61
+     /tmp/ccbGazKg.s:4154   .debug_str:000000000000027b .LASF62
+     /tmp/ccbGazKg.s:4204   .debug_str:00000000000003b6 .LASF63
+     /tmp/ccbGazKg.s:4158   .debug_str:0000000000000286 .LASF64
+     /tmp/ccbGazKg.s:4184   .debug_str:0000000000000328 .LASF27
+     /tmp/ccbGazKg.s:4198   .debug_str:0000000000000392 .LASF28
+     /tmp/ccbGazKg.s:4172   .debug_str:00000000000002f0 .LASF65
+     /tmp/ccbGazKg.s:4156   .debug_str:0000000000000281 .LASF29
+     /tmp/ccbGazKg.s:971    .text:00000000000006e4 .LFB12
+     /tmp/ccbGazKg.s:1150   .text:00000000000008b0 .LFE12
+     /tmp/ccbGazKg.s:1065   .text:00000000000007e0 .LBB16
+     /tmp/ccbGazKg.s:1075   .text:00000000000007ec .LBE16
+     /tmp/ccbGazKg.s:990    .text:000000000000070c .LVL136
+     /tmp/ccbGazKg.s:995    .text:000000000000071c .LVL137
+     /tmp/ccbGazKg.s:1001   .text:0000000000000730 .LVL138
+     /tmp/ccbGazKg.s:1006   .text:000000000000073c .LVL139
+     /tmp/ccbGazKg.s:1011   .text:000000000000074c .LVL140
+     /tmp/ccbGazKg.s:1017   .text:0000000000000760 .LVL141
+     /tmp/ccbGazKg.s:1022   .text:000000000000076c .LVL142
+     /tmp/ccbGazKg.s:1027   .text:000000000000077c .LVL143
+     /tmp/ccbGazKg.s:1034   .text:0000000000000790 .LVL144
+     /tmp/ccbGazKg.s:1039   .text:00000000000007a0 .LVL145
+     /tmp/ccbGazKg.s:1043   .text:00000000000007a8 .LVL146
+     /tmp/ccbGazKg.s:1048   .text:00000000000007b8 .LVL147
+     /tmp/ccbGazKg.s:1052   .text:00000000000007c0 .LVL148
+     /tmp/ccbGazKg.s:1054   .text:00000000000007c8 .LVL149
+     /tmp/ccbGazKg.s:1059   .text:00000000000007d8 .LVL150
+     /tmp/ccbGazKg.s:1063   .text:00000000000007e0 .LVL151
+     /tmp/ccbGazKg.s:1080   .text:00000000000007fc .LVL153
+     /tmp/ccbGazKg.s:1085   .text:0000000000000808 .LVL154
+     /tmp/ccbGazKg.s:1090   .text:0000000000000814 .LVL155
+     /tmp/ccbGazKg.s:1094   .text:000000000000081c .LVL156
+     /tmp/ccbGazKg.s:1098   .text:0000000000000824 .LVL157
+     /tmp/ccbGazKg.s:1103   .text:0000000000000834 .LVL158
+     /tmp/ccbGazKg.s:1113   .text:0000000000000858 .LVL159
+     /tmp/ccbGazKg.s:1118   .text:0000000000000864 .LVL160
+     /tmp/ccbGazKg.s:1123   .text:0000000000000870 .LVL161
+     /tmp/ccbGazKg.s:1128   .text:0000000000000880 .LVL162
+     /tmp/ccbGazKg.s:1138   .text:0000000000000898 .LVL163
+     /tmp/ccbGazKg.s:1144   .text:00000000000008a8 .LVL164
+     /tmp/ccbGazKg.s:1148   .text:00000000000008b0 .LVL165
+     /tmp/ccbGazKg.s:4140   .debug_str:000000000000020f .LASF33
+     /tmp/ccbGazKg.s:463    .text:000000000000033c .LFB11
+     /tmp/ccbGazKg.s:693    .text:0000000000000514 .LFE11
+     /tmp/ccbGazKg.s:4142   .debug_str:000000000000021c .LASF30
+     /tmp/ccbGazKg.s:4166   .debug_str:00000000000002cc .LASF31
+     /tmp/ccbGazKg.s:3800   .debug_loc:0000000000000000 .LLST8
+     /tmp/ccbGazKg.s:4180   .debug_str:0000000000000312 .LASF32
+     /tmp/ccbGazKg.s:4088   .debug_ranges:0000000000000000 .Ldebug_ranges0
+     /tmp/ccbGazKg.s:3811   .debug_loc:0000000000000036 .LLST9
+     /tmp/ccbGazKg.s:506    .text:0000000000000390 .LVL65
+     /tmp/ccbGazKg.s:547    .text:00000000000003f0 .LBB10
+     /tmp/ccbGazKg.s:568    .text:0000000000000418 .LBE10
+     /tmp/ccbGazKg.s:3822   .debug_loc:000000000000006c .LLST10
+GAS LISTING /tmp/ccbGazKg.s 			page 42
+
+
+     /tmp/ccbGazKg.s:561    .text:0000000000000410 .LVL74
+     /tmp/ccbGazKg.s:583    .text:0000000000000440 .LBB11
+     /tmp/ccbGazKg.s:607    .text:0000000000000470 .LBE11
+     /tmp/ccbGazKg.s:3833   .debug_loc:00000000000000a2 .LLST11
+     /tmp/ccbGazKg.s:594    .text:0000000000000454 .LVL82
+     /tmp/ccbGazKg.s:608    .text:0000000000000470 .LBB12
+     /tmp/ccbGazKg.s:631    .text:000000000000049c .LBE12
+     /tmp/ccbGazKg.s:3840   .debug_loc:00000000000000c5 .LLST12
+     /tmp/ccbGazKg.s:622    .text:0000000000000490 .LVL86
+     /tmp/ccbGazKg.s:636    .text:00000000000004a4 .LBB13
+     /tmp/ccbGazKg.s:660    .text:00000000000004d0 .LBE13
+     /tmp/ccbGazKg.s:3847   .debug_loc:00000000000000e8 .LLST13
+     /tmp/ccbGazKg.s:651    .text:00000000000004c8 .LVL90
+     /tmp/ccbGazKg.s:484    .text:0000000000000368 .LVL62
+     /tmp/ccbGazKg.s:488    .text:0000000000000370 .LVL63
+     /tmp/ccbGazKg.s:529    .text:00000000000003c0 .LVL69
+     /tmp/ccbGazKg.s:534    .text:00000000000003cc .LVL70
+     /tmp/ccbGazKg.s:539    .text:00000000000003d8 .LVL71
+     /tmp/ccbGazKg.s:546    .text:00000000000003f0 .LVL72
+     /tmp/ccbGazKg.s:572    .text:0000000000000420 .LVL77
+     /tmp/ccbGazKg.s:576    .text:0000000000000428 .LVL78
+     /tmp/ccbGazKg.s:582    .text:0000000000000440 .LVL79
+     /tmp/ccbGazKg.s:635    .text:00000000000004a4 .LVL88
+     /tmp/ccbGazKg.s:664    .text:00000000000004d8 .LVL93
+     /tmp/ccbGazKg.s:668    .text:00000000000004e0 .LVL94
+     /tmp/ccbGazKg.s:674    .text:00000000000004f8 .LVL95
+     /tmp/ccbGazKg.s:4098   .debug_str:0000000000000000 .LASF34
+     /tmp/ccbGazKg.s:724    .text:0000000000000514 .LFB3
+     /tmp/ccbGazKg.s:901    .text:00000000000006bc .LFE3
+     /tmp/ccbGazKg.s:3858   .debug_loc:000000000000011e .LLST14
+     /tmp/ccbGazKg.s:3869   .debug_loc:0000000000000154 .LLST15
+     /tmp/ccbGazKg.s:3876   .debug_loc:0000000000000177 .LLST16
+     /tmp/ccbGazKg.s:3887   .debug_loc:00000000000001ad .LLST17
+     /tmp/ccbGazKg.s:3894   .debug_loc:00000000000001d0 .LLST18
+     /tmp/ccbGazKg.s:4138   .debug_str:000000000000020a .LASF36
+     /tmp/ccbGazKg.s:4202   .debug_str:00000000000003ac .LASF66
+     /tmp/ccbGazKg.s:4216   .debug_str:00000000000003ec .LASF35
+     /tmp/ccbGazKg.s:4206   .debug_str:00000000000003bf .LASF37
+     /tmp/ccbGazKg.s:69     .text:0000000000000050 .LFB5
+     /tmp/ccbGazKg.s:87     .text:0000000000000068 .LFE5
+     /tmp/ccbGazKg.s:906    .text:00000000000006bc .LFB7
+     /tmp/ccbGazKg.s:930    .text:00000000000006e4 .LFE7
+     /tmp/ccbGazKg.s:3905   .debug_loc:0000000000000206 .LLST21
+     /tmp/ccbGazKg.s:920    .text:00000000000006d4 .LVL135
+     /tmp/ccbGazKg.s:3919   .debug_loc:000000000000023f .LLST19
+     /tmp/ccbGazKg.s:843    .text:0000000000000640 .LBB14
+     /tmp/ccbGazKg.s:850    .text:000000000000064c .LBE14
+     /tmp/ccbGazKg.s:3926   .debug_loc:0000000000000262 .LLST20
+     /tmp/ccbGazKg.s:747    .text:0000000000000544 .LVL98
+     /tmp/ccbGazKg.s:751    .text:000000000000054c .LVL99
+     /tmp/ccbGazKg.s:759    .text:000000000000055c .LVL102
+     /tmp/ccbGazKg.s:766    .text:000000000000056c .LVL104
+     /tmp/ccbGazKg.s:774    .text:000000000000057c .LVL107
+     /tmp/ccbGazKg.s:778    .text:0000000000000590 .LVL108
+     /tmp/ccbGazKg.s:783    .text:000000000000059c .LVL109
+     /tmp/ccbGazKg.s:787    .text:00000000000005b0 .LVL110
+     /tmp/ccbGazKg.s:792    .text:00000000000005bc .LVL111
+GAS LISTING /tmp/ccbGazKg.s 			page 43
+
+
+     /tmp/ccbGazKg.s:799    .text:00000000000005d0 .LVL113
+     /tmp/ccbGazKg.s:804    .text:00000000000005dc .LVL114
+     /tmp/ccbGazKg.s:814    .text:00000000000005f8 .LVL117
+     /tmp/ccbGazKg.s:819    .text:0000000000000604 .LVL118
+     /tmp/ccbGazKg.s:824    .text:0000000000000610 .LVL119
+     /tmp/ccbGazKg.s:828    .text:0000000000000618 .LVL120
+     /tmp/ccbGazKg.s:834    .text:0000000000000630 .LVL121
+     /tmp/ccbGazKg.s:840    .text:000000000000063c .LVL122
+     /tmp/ccbGazKg.s:854    .text:0000000000000654 .LVL125
+     /tmp/ccbGazKg.s:858    .text:0000000000000668 .LVL126
+     /tmp/ccbGazKg.s:867    .text:000000000000067c .LVL127
+     /tmp/ccbGazKg.s:872    .text:0000000000000684 .LVL128
+     /tmp/ccbGazKg.s:878    .text:000000000000069c .LVL129
+     /tmp/ccbGazKg.s:4200   .debug_str:000000000000039f .LASF38
+     /tmp/ccbGazKg.s:219    .text:0000000000000104 .LFB2
+     /tmp/ccbGazKg.s:441    .text:000000000000033c .LFE2
+     /tmp/ccbGazKg.s:3933   .debug_loc:0000000000000285 .LLST3
+     /tmp/ccbGazKg.s:3944   .debug_loc:00000000000002bb .LLST4
+     /tmp/ccbGazKg.s:3951   .debug_loc:00000000000002de .LLST5
+     /tmp/ccbGazKg.s:3962   .debug_loc:0000000000000314 .LLST6
+     /tmp/ccbGazKg.s:3973   .debug_loc:000000000000034a .LLST7
+     /tmp/ccbGazKg.s:244    .text:0000000000000138 .LVL17
+     /tmp/ccbGazKg.s:248    .text:0000000000000140 .LVL18
+     /tmp/ccbGazKg.s:252    .text:0000000000000148 .LVL19
+     /tmp/ccbGazKg.s:260    .text:0000000000000158 .LVL22
+     /tmp/ccbGazKg.s:267    .text:0000000000000168 .LVL24
+     /tmp/ccbGazKg.s:275    .text:0000000000000178 .LVL27
+     /tmp/ccbGazKg.s:283    .text:0000000000000188 .LVL30
+     /tmp/ccbGazKg.s:287    .text:000000000000019c .LVL31
+     /tmp/ccbGazKg.s:292    .text:00000000000001a8 .LVL32
+     /tmp/ccbGazKg.s:296    .text:00000000000001bc .LVL33
+     /tmp/ccbGazKg.s:301    .text:00000000000001c8 .LVL34
+     /tmp/ccbGazKg.s:305    .text:00000000000001dc .LVL35
+     /tmp/ccbGazKg.s:313    .text:00000000000001f4 .LVL36
+     /tmp/ccbGazKg.s:321    .text:000000000000020c .LVL37
+     /tmp/ccbGazKg.s:329    .text:0000000000000224 .LVL38
+     /tmp/ccbGazKg.s:333    .text:000000000000022c .LVL39
+     /tmp/ccbGazKg.s:338    .text:0000000000000238 .LVL40
+     /tmp/ccbGazKg.s:343    .text:0000000000000244 .LVL41
+     /tmp/ccbGazKg.s:353    .text:0000000000000260 .LVL44
+     /tmp/ccbGazKg.s:358    .text:000000000000026c .LVL45
+     /tmp/ccbGazKg.s:363    .text:0000000000000278 .LVL46
+     /tmp/ccbGazKg.s:368    .text:0000000000000284 .LVL47
+     /tmp/ccbGazKg.s:372    .text:000000000000028c .LVL48
+     /tmp/ccbGazKg.s:376    .text:0000000000000294 .LVL49
+     /tmp/ccbGazKg.s:382    .text:00000000000002ac .LVL50
+     /tmp/ccbGazKg.s:387    .text:00000000000002b8 .LVL51
+     /tmp/ccbGazKg.s:392    .text:00000000000002cc .LVL52
+     /tmp/ccbGazKg.s:399    .text:00000000000002e0 .LVL53
+     /tmp/ccbGazKg.s:405    .text:00000000000002f8 .LVL54
+     /tmp/ccbGazKg.s:410    .text:0000000000000304 .LVL55
+     /tmp/ccbGazKg.s:415    .text:0000000000000318 .LVL56
+     /tmp/ccbGazKg.s:4162   .debug_str:00000000000002bc .LASF67
+     /tmp/ccbGazKg.s:12     .text:0000000000000000 .LFB1
+     /tmp/ccbGazKg.s:64     .text:0000000000000050 .LFE1
+     /tmp/ccbGazKg.s:3984   .debug_loc:0000000000000380 .LLST0
+     /tmp/ccbGazKg.s:4120   .debug_str:0000000000000169 .LASF39
+GAS LISTING /tmp/ccbGazKg.s 			page 44
+
+
+     /tmp/ccbGazKg.s:4148   .debug_str:0000000000000247 .LASF40
+     /tmp/ccbGazKg.s:101    .text:0000000000000068 .LFB0
+     /tmp/ccbGazKg.s:176    .text:0000000000000104 .LFE0
+     /tmp/ccbGazKg.s:4228   .debug_str:000000000000041c .LASF41
+     /tmp/ccbGazKg.s:4031   .debug_loc:0000000000000434 .LLST1
+     /tmp/ccbGazKg.s:4057   .debug_loc:00000000000004a6 .LLST2
+     /tmp/ccbGazKg.s:133    .text:00000000000000b0 .LVL11
+     /tmp/ccbGazKg.s:138    .text:00000000000000bc .LVL12
+     /tmp/ccbGazKg.s:143    .text:00000000000000c8 .LVL13
+     /tmp/ccbGazKg.s:4176   .debug_str:0000000000000306 .LASF42
+     /tmp/ccbGazKg.s:4212   .debug_str:00000000000003d6 .LASF43
+     /tmp/ccbGazKg.s:4164   .debug_str:00000000000002c4 .LASF44
+     /tmp/ccbGazKg.s:4134   .debug_str:00000000000001f6 .LASF45
+     /tmp/ccbGazKg.s:4230   .debug_str:0000000000000421 .LASF46
+     /tmp/ccbGazKg.s:4222   .debug_str:0000000000000408 .LASF47
+     /tmp/ccbGazKg.s:4174   .debug_str:0000000000000300 .LASF48
+     /tmp/ccbGazKg.s:4220   .debug_str:00000000000003fe .LASF49
+     /tmp/ccbGazKg.s:4188   .debug_str:0000000000000348 .LASF50
+     /tmp/ccbGazKg.s:4208   .debug_str:00000000000003c9 .LASF51
+     /tmp/ccbGazKg.s:4196   .debug_str:0000000000000382 .LASF53
+     /tmp/ccbGazKg.s:4224   .debug_str:000000000000040f .LASF52
+     /tmp/ccbGazKg.s:4218   .debug_str:00000000000003f1 .LASF54
+     /tmp/ccbGazKg.s:497    .text:000000000000037c .LVL64
+     /tmp/ccbGazKg.s:517    .text:00000000000003a8 .LVL66
+     /tmp/ccbGazKg.s:522    .text:00000000000003b0 .LVL68
+     /tmp/ccbGazKg.s:688    .text:000000000000050c .LVL97
+     /tmp/ccbGazKg.s:520    .text:00000000000003ac .LVL67
+     /tmp/ccbGazKg.s:550    .text:00000000000003f4 .LVL73
+     /tmp/ccbGazKg.s:564    .text:0000000000000414 .LVL75
+     /tmp/ccbGazKg.s:566    .text:0000000000000418 .LVL76
+     /tmp/ccbGazKg.s:586    .text:0000000000000444 .LVL80
+     /tmp/ccbGazKg.s:588    .text:0000000000000448 .LVL81
+     /tmp/ccbGazKg.s:611    .text:0000000000000474 .LVL84
+     /tmp/ccbGazKg.s:613    .text:0000000000000478 .LVL85
+     /tmp/ccbGazKg.s:639    .text:00000000000004a8 .LVL89
+     /tmp/ccbGazKg.s:655    .text:00000000000004cc .LVL91
+     /tmp/ccbGazKg.s:658    .text:00000000000004d0 .LVL92
+     /tmp/ccbGazKg.s:683    .text:0000000000000504 .LVL96
+     /tmp/ccbGazKg.s:753    .text:0000000000000550 .LVL100
+     /tmp/ccbGazKg.s:757    .text:0000000000000554 .LVL101
+     /tmp/ccbGazKg.s:890    .text:00000000000006ac .LVL131
+     /tmp/ccbGazKg.s:761    .text:0000000000000560 .LVL103
+     /tmp/ccbGazKg.s:842    .text:0000000000000640 .LVL123
+     /tmp/ccbGazKg.s:768    .text:0000000000000570 .LVL105
+     /tmp/ccbGazKg.s:772    .text:0000000000000574 .LVL106
+     /tmp/ccbGazKg.s:893    .text:00000000000006b0 .LVL132
+     /tmp/ccbGazKg.s:797    .text:00000000000005c8 .LVL112
+     /tmp/ccbGazKg.s:806    .text:00000000000005e0 .LVL115
+     /tmp/ccbGazKg.s:812    .text:00000000000005f0 .LVL116
+     /tmp/ccbGazKg.s:896    .text:00000000000006b4 .LVL133
+     /tmp/ccbGazKg.s:909    .text:00000000000006bc .LVL134
+     /tmp/ccbGazKg.s:848    .text:000000000000064c .LVL124
+     /tmp/ccbGazKg.s:887    .text:00000000000006a8 .LVL130
+     /tmp/ccbGazKg.s:254    .text:000000000000014c .LVL20
+     /tmp/ccbGazKg.s:258    .text:0000000000000150 .LVL21
+     /tmp/ccbGazKg.s:427    .text:0000000000000328 .LVL58
+     /tmp/ccbGazKg.s:262    .text:000000000000015c .LVL23
+GAS LISTING /tmp/ccbGazKg.s 			page 45
+
+
+     /tmp/ccbGazKg.s:424    .text:0000000000000324 .LVL57
+     /tmp/ccbGazKg.s:269    .text:000000000000016c .LVL25
+     /tmp/ccbGazKg.s:273    .text:0000000000000170 .LVL26
+     /tmp/ccbGazKg.s:430    .text:000000000000032c .LVL59
+     /tmp/ccbGazKg.s:277    .text:000000000000017c .LVL28
+     /tmp/ccbGazKg.s:281    .text:0000000000000180 .LVL29
+     /tmp/ccbGazKg.s:433    .text:0000000000000330 .LVL60
+     /tmp/ccbGazKg.s:345    .text:0000000000000248 .LVL42
+     /tmp/ccbGazKg.s:351    .text:0000000000000258 .LVL43
+     /tmp/ccbGazKg.s:436    .text:0000000000000334 .LVL61
+     /tmp/ccbGazKg.s:16     .text:0000000000000000 .LVL0
+     /tmp/ccbGazKg.s:36     .text:000000000000002c .LVL1
+     /tmp/ccbGazKg.s:38     .text:0000000000000030 .LVL2
+     /tmp/ccbGazKg.s:41     .text:0000000000000034 .LVL3
+     /tmp/ccbGazKg.s:43     .text:0000000000000038 .LVL4
+     /tmp/ccbGazKg.s:46     .text:000000000000003c .LVL5
+     /tmp/ccbGazKg.s:56     .text:0000000000000048 .LVL6
+     /tmp/ccbGazKg.s:61     .text:000000000000004c .LVL7
+     /tmp/ccbGazKg.s:104    .text:0000000000000068 .LVL9
+     /tmp/ccbGazKg.s:129    .text:00000000000000a8 .LVL10
+     /tmp/ccbGazKg.s:164    .text:00000000000000f0 .LVL14
+     /tmp/ccbGazKg.s:168    .text:00000000000000f8 .LVL15
+     /tmp/ccbGazKg.s:173    .text:0000000000000100 .LVL16
+     /tmp/ccbGazKg.s:1179   .debug_info:0000000000000000 .Ldebug_info0
+     /tmp/ccbGazKg.s:490    .text:0000000000000374 .LBB8
+     /tmp/ccbGazKg.s:493    .text:0000000000000378 .LBE8
+     /tmp/ccbGazKg.s:498    .text:000000000000037c .LBB9
+     /tmp/ccbGazKg.s:524    .text:00000000000003b0 .LBE9
+
+UNDEFINED SYMBOLS
+HEAP_START_ADDR
+HEAP_END_ADDR
+kputs
+kputc
+_ZN15MemoryAllocator5checkEv
+_ZN15MemoryAllocator16total_free_bytesEv
+_ZN15MemoryAllocator5allocEm
+_ZN15MemoryAllocator4freeEPv
+mem_alloc
+kputdec
+mem_free
+_Znwm
+_ZdlPv
+kputhex
+_ZN15MemoryAllocator4initEv
+trap_entry
+kpanic
+khalt

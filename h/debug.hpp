@@ -14,5 +14,5 @@ extern "C" {
     __attribute__((noreturn)) void khalt();
 
     // Print message and halt. Use from asserts / invariant checks.
-    __attribute__((noreturn)) void panic(const char* msg);
+    __attribute__((noreturn)) void kpanic(const char* msg);
 }

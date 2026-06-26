@@ -106,6 +106,8 @@ ${DIR_BUILD}/%.o: %.s Makefile | ${DIR_BUILD}
 	@mkdir -p $(dir ${@})
 	${AS} -c ${ASFLAGS} -o ${@} ${<}
 
+${DIR_BUILD}/%.o: %.S Makefile | ${DIR_BUILD} @mkdir -p $(dir ${@}) ${CC} -c ${ASFLAGS} -o ${@} ${<}
+
 ${DIR_BUILD}:
 	mkdir ${@}
 

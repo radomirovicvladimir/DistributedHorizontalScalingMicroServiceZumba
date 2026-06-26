@@ -4,7 +4,7 @@
 #include "../h/MemoryAllocator.hpp"
 #include "../h/syscall_c.h"
 
-// Trap entry point — defined in trap.S.
+// Trap entry point — defined in trap_entry.S.
 extern "C" void trap_entry();
 
 // ---- test helpers ---------------------------------------------------------
@@ -164,7 +164,7 @@ extern "C" void main() {
     kputdec(tests_run - tests_failed); kputc('/'); kputdec(tests_run);
     kputs(" passed ====\n");
 
-    if (tests_failed != 0) panic("one or more tests failed");
+    if (tests_failed != 0) kpanic("one or more tests failed");
     kputs("ALL OK — halting QEMU\n");
     khalt();
 }

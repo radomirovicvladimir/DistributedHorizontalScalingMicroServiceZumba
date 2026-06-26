@@ -15,7 +15,7 @@ void MemoryAllocator::init() {
     uint64 end   = align_down((uint64)HEAP_END_ADDR,   MEM_BLOCK_SIZE);
 
     if (end <= start || (end - start) < 2 * MEM_BLOCK_SIZE) {
-        panic("MemoryAllocator::init: heap region too small");
+        kpanic("MemoryAllocator::init: heap region too small");
     }
 
     freelist = (Header*)start;
@@ -103,17 +103,17 @@ void MemoryAllocator::check() {
     for (Header* p = freelist; p != nullptr; prev = p, p = p->next) {
         if ((uint64)p < (uint64)HEAP_START_ADDR ||
             (uint64)p >= (uint64)HEAP_END_ADDR)
-            panic("freelist: node out of bounds");
+            kpanic("freelist: node out of bounds");
         if (p->blocks == 0)
-            panic("freelist: zero-size node");
+            kpanic("freelist: zero-size node");
         if (prev != nullptr) {
             if (prev >= p)
-                panic("freelist: not sorted");
+                kpanic("freelist: not sorted");
             uchar* prev_end = (uchar*)prev + prev->blocks * MEM_BLOCK_SIZE;
             if (prev_end > (uchar*)p)
-                panic("freelist: overlapping nodes");
+                kpanic("freelist: overlapping nodes");
             if (prev_end == (uchar*)p)
-                panic("freelist: adjacent nodes not coalesced");
+                kpanic("freelist: adjacent nodes not coalesced");
         }
     }
 }

@@ -4,7 +4,7 @@
 #include "../h/debug.hpp"
 #include "../h/MemoryAllocator.hpp"
 
-// Frame layout MUST match trap.S exactly: 16 caller-saved registers, in order.
+// Frame layout MUST match trap_entry.S exactly: 16 caller-saved registers, in order.
 struct TrapFrame {
     uint64 ra;
     uint64 t0, t1, t2, t3, t4, t5, t6;
@@ -27,7 +27,7 @@ extern "C" void c_trap_handler(TrapFrame* f) {
                 break;
             }
             case SYS_MEM_FREE: {
-                f->a0 = (uint64)(int64)MemoryAllocator::free((void*)f->a1);
+                f->a0 = (uint64)MemoryAllocator::free((void*)f->a1);
                 break;
             }
             default:
@@ -44,5 +44,5 @@ extern "C" void c_trap_handler(TrapFrame* f) {
     kputs("\nunhandled trap: scause="); kputhex(cause);
     kputs(" sepc=");                    kputhex(pc);
     kputc('\n');
-    panic("trap");
+    kpanic("trap");
 }

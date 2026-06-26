@@ -1,0 +1,506 @@
+GAS LISTING /tmp/ccT6neYC.s 			page 1
+
+
+   1              		.file	"trap.cpp"
+   2              		.option nopic
+   3              		.option norelax
+   4              		.attribute arch, "rv64i2p0_m2p0_a2p0"
+   5              		.attribute unaligned_access, 0
+   6              		.attribute stack_align, 16
+   7              		.text
+   8              	.Ltext0:
+   9              		.section	.rodata.str1.8,"aMS",@progbits,1
+  10              		.align	3
+  11              	.LC0:
+  12 0000 0A756E68 		.string	"\nunhandled trap: scause="
+  12      616E646C 
+  12      65642074 
+  12      7261703A 
+  12      20736361 
+  13 0019 00000000 		.align	3
+  13      000000
+  14              	.LC1:
+  15 0020 20736570 		.string	" sepc="
+  15      633D00
+  16 0027 00       		.align	3
+  17              	.LC2:
+  18 0028 74726170 		.string	"trap"
+  18      00
+  19              		.text
+  20              		.align	2
+  21              		.globl	c_trap_handler
+  23              	c_trap_handler:
+  24              	.LFB0:
+  25              		.file 1 "src/trap.cpp"
+   1:src/trap.cpp  **** #include "../lib/hw.h"
+   2:src/trap.cpp  **** #include "../h/riscv.hpp"
+   3:src/trap.cpp  **** #include "../h/syscall_abi.hpp"
+   4:src/trap.cpp  **** #include "../h/debug.hpp"
+   5:src/trap.cpp  **** #include "../h/MemoryAllocator.hpp"
+   6:src/trap.cpp  **** 
+   7:src/trap.cpp  **** // Frame layout MUST match trap_entry.S exactly: 16 caller-saved registers, in order.
+   8:src/trap.cpp  **** struct TrapFrame {
+   9:src/trap.cpp  ****     uint64 ra;
+  10:src/trap.cpp  ****     uint64 t0, t1, t2, t3, t4, t5, t6;
+  11:src/trap.cpp  ****     uint64 a0, a1, a2, a3, a4, a5, a6, a7;
+  12:src/trap.cpp  **** };
+  13:src/trap.cpp  **** 
+  14:src/trap.cpp  **** // Dispatcher for ecall / exception / interrupt. For Task 1 only ecall is wired.
+  15:src/trap.cpp  **** extern "C" void c_trap_handler(TrapFrame* f) {
+  26              		.loc 1 15 46
+  27              		.cfi_startproc
+  28              	.LVL0:
+  29 0000 130101FD 		addi	sp,sp,-48
+  30              		.cfi_def_cfa_offset 48
+  31 0004 23341102 		sd	ra,40(sp)
+  32 0008 23308102 		sd	s0,32(sp)
+  33 000c 233C9100 		sd	s1,24(sp)
+  34 0010 23382101 		sd	s2,16(sp)
+  35 0014 23343101 		sd	s3,8(sp)
+  36              		.cfi_offset 1, -8
+GAS LISTING /tmp/ccT6neYC.s 			page 2
+
+
+  37              		.cfi_offset 8, -16
+  38              		.cfi_offset 9, -24
+  39              		.cfi_offset 18, -32
+  40              		.cfi_offset 19, -40
+  41 0018 13040103 		addi	s0,sp,48
+  42              		.cfi_def_cfa 8, 0
+  16:src/trap.cpp  ****     uint64 cause = READ_CSR(scause);
+  43              		.loc 1 16 5
+  44              	.LBB2:
+  45              		.loc 1 16 20
+  46              		.loc 1 16 20
+  47              	 #APP
+  48              	# 16 "src/trap.cpp" 1
+  17              	    uint64 pc    = READ_CSR(sepc);
+  49              		csrr s3, scause
+  50              	# 0 "" 2
+  51              	.LVL1:
+  16:src/trap.cpp  ****     uint64 cause = READ_CSR(scause);
+  52              		.loc 1 16 20
+  53              	 #NO_APP
+  54              	.LBE2:
+  55              		.loc 1 17 5
+  56              	.LBB3:
+  57              		.loc 1 17 20
+  58              		.loc 1 17 20
+  59              	 #APP
+  60              	# 17 "src/trap.cpp" 1
+  18              	
+  61              		csrr s2, sepc
+  62              	# 0 "" 2
+  63              	.LVL2:
+  17:src/trap.cpp  **** 
+  64              		.loc 1 17 20
+  65              	 #NO_APP
+  66              	.LBE3:
+  19:src/trap.cpp  ****     if (cause == SCAUSE_ECALL_U || cause == SCAUSE_ECALL_S) {
+  67              		.loc 1 19 5
+  68              	.LBB4:
+  69              		.loc 1 19 33 is_stmt 0
+  70 0024 138789FF 		addi	a4,s3,-8
+  71              		.loc 1 19 5
+  72 0028 93071000 		li	a5,1
+  73 002c 63EAE706 		bgtu	a4,a5,.L2
+  74 0030 93040500 		mv	s1,a0
+  75              	.LBB5:
+  20:src/trap.cpp  ****         // Syscall: dispatch by a0, result goes back in a0.
+  21:src/trap.cpp  ****         switch (f->a0) {
+  76              		.loc 1 21 9 is_stmt 1
+  77              	.LBB6:
+  78              		.loc 1 21 20 is_stmt 0
+  79 0034 83370504 		ld	a5,64(a0)
+  80              		.loc 1 21 9
+  81 0038 13071000 		li	a4,1
+  82 003c 638CE700 		beq	a5,a4,.L3
+  83 0040 13072000 		li	a4,2
+  84 0044 6384E704 		beq	a5,a4,.L4
+  85              	.LBB7:
+GAS LISTING /tmp/ccT6neYC.s 			page 3
+
+
+  22:src/trap.cpp  ****             case SYS_MEM_ALLOC: {
+  23:src/trap.cpp  ****                 // ABI: a1 = size IN BLOCKS (PDF p.8). Convert back to bytes for
+  24:src/trap.cpp  ****                 // the allocator's public API and let it re-round (header etc).
+  25:src/trap.cpp  ****                 size_t bytes = (size_t)f->a1 * MEM_BLOCK_SIZE;
+  26:src/trap.cpp  ****                 f->a0 = (uint64)MemoryAllocator::alloc(bytes);
+  27:src/trap.cpp  ****                 break;
+  28:src/trap.cpp  ****             }
+  29:src/trap.cpp  ****             case SYS_MEM_FREE: {
+  30:src/trap.cpp  ****                 f->a0 = (uint64)MemoryAllocator::free((void*)f->a1);
+  31:src/trap.cpp  ****                 break;
+  32:src/trap.cpp  ****             }
+  33:src/trap.cpp  ****             default:
+  86              		.loc 1 33 13 is_stmt 1
+  34:src/trap.cpp  ****                 // Unknown syscall: signal error. (-1 in a0, sign-extended.)
+  35:src/trap.cpp  ****                 f->a0 = (uint64)-1;
+  87              		.loc 1 35 17
+  88              		.loc 1 35 23 is_stmt 0
+  89 0048 9307F0FF 		li	a5,-1
+  90 004c 2330F504 		sd	a5,64(a0)
+  36:src/trap.cpp  ****                 break;
+  91              		.loc 1 36 17 is_stmt 1
+  92 0050 6F008001 		j	.L6
+  93              	.L3:
+  22:src/trap.cpp  ****             case SYS_MEM_ALLOC: {
+  94              		.loc 1 22 13
+  22:src/trap.cpp  ****             case SYS_MEM_ALLOC: {
+  95              		.loc 1 22 33
+  96              	.LBB8:
+  25:src/trap.cpp  ****                 f->a0 = (uint64)MemoryAllocator::alloc(bytes);
+  97              		.loc 1 25 17
+  25:src/trap.cpp  ****                 f->a0 = (uint64)MemoryAllocator::alloc(bytes);
+  98              		.loc 1 25 43 is_stmt 0
+  99 0054 03358504 		ld	a0,72(a0)
+ 100              	.LVL3:
+  26:src/trap.cpp  ****                 break;
+ 101              		.loc 1 26 17 is_stmt 1
+  26:src/trap.cpp  ****                 break;
+ 102              		.loc 1 26 55 is_stmt 0
+ 103 0058 13156500 		slli	a0,a0,6
+ 104              	.LVL4:
+ 105 005c 97000000 		call	_ZN15MemoryAllocator5allocEm
+ 105      E7800000 
+ 106              	.LVL5:
+  26:src/trap.cpp  ****                 break;
+ 107              		.loc 1 26 23
+ 108 0064 23B0A404 		sd	a0,64(s1)
+  27:src/trap.cpp  ****             }
+ 109              		.loc 1 27 17 is_stmt 1
+ 110              	.L6:
+ 111              	.LBE8:
+ 112              	.LBE7:
+ 113              	.LBE6:
+  37:src/trap.cpp  ****         }
+  38:src/trap.cpp  ****         // Step past the ecall instruction so sret resumes after it.
+  39:src/trap.cpp  ****         WRITE_CSR(sepc, pc + 4);
+ 114              		.loc 1 39 9
+ 115              	.LBB10:
+GAS LISTING /tmp/ccT6neYC.s 			page 4
+
+
+ 116              		.loc 1 39 9
+ 117 0068 13094900 		addi	s2,s2,4
+ 118              	.LVL6:
+ 119              		.loc 1 39 9
+ 120              	 #APP
+ 121              	# 39 "src/trap.cpp" 1
+  40              	        return;
+ 122              		csrw sepc, s2
+ 123              	# 0 "" 2
+ 124              	 #NO_APP
+ 125              	.LBE10:
+ 126              		.loc 1 40 9
+ 127              	.LBE5:
+ 128              	.LBE4:
+  41:src/trap.cpp  ****     }
+  42:src/trap.cpp  **** 
+  43:src/trap.cpp  ****     // Anything else is unexpected during Task 1 — halt loudly.
+  44:src/trap.cpp  ****     kputs("\nunhandled trap: scause="); kputhex(cause);
+  45:src/trap.cpp  ****     kputs(" sepc=");                    kputhex(pc);
+  46:src/trap.cpp  ****     kputc('\n');
+  47:src/trap.cpp  ****     kpanic("trap");
+  48:src/trap.cpp  **** }
+ 129              		.loc 1 48 1 is_stmt 0
+ 130 0070 83308102 		ld	ra,40(sp)
+ 131              		.cfi_remember_state
+ 132              		.cfi_restore 1
+ 133 0074 03340102 		ld	s0,32(sp)
+ 134              		.cfi_restore 8
+ 135              		.cfi_def_cfa 2, 48
+ 136 0078 83348101 		ld	s1,24(sp)
+ 137              		.cfi_restore 9
+ 138              	.LVL7:
+ 139 007c 03390101 		ld	s2,16(sp)
+ 140              		.cfi_restore 18
+ 141              	.LVL8:
+ 142 0080 83398100 		ld	s3,8(sp)
+ 143              		.cfi_restore 19
+ 144              	.LVL9:
+ 145 0084 13010103 		addi	sp,sp,48
+ 146              		.cfi_def_cfa_offset 0
+ 147 0088 67800000 		jr	ra
+ 148              	.LVL10:
+ 149              	.L4:
+ 150              		.cfi_restore_state
+ 151              	.LBB13:
+ 152              	.LBB12:
+ 153              	.LBB11:
+ 154              	.LBB9:
+  29:src/trap.cpp  ****                 f->a0 = (uint64)MemoryAllocator::free((void*)f->a1);
+ 155              		.loc 1 29 13 is_stmt 1
+  29:src/trap.cpp  ****                 f->a0 = (uint64)MemoryAllocator::free((void*)f->a1);
+ 156              		.loc 1 29 32
+  30:src/trap.cpp  ****                 break;
+ 157              		.loc 1 30 17
+  30:src/trap.cpp  ****                 break;
+ 158              		.loc 1 30 54 is_stmt 0
+ 159 008c 03358504 		ld	a0,72(a0)
+GAS LISTING /tmp/ccT6neYC.s 			page 5
+
+
+ 160 0090 97000000 		call	_ZN15MemoryAllocator4freeEPv
+ 160      E7800000 
+ 161              	.LVL11:
+  30:src/trap.cpp  ****                 break;
+ 162              		.loc 1 30 23
+ 163 0098 23B0A404 		sd	a0,64(s1)
+  31:src/trap.cpp  ****             }
+ 164              		.loc 1 31 17 is_stmt 1
+ 165 009c 6FF0DFFC 		j	.L6
+ 166              	.LVL12:
+ 167              	.L2:
+ 168              	.LBE9:
+ 169              	.LBE11:
+ 170              	.LBE12:
+ 171              	.LBE13:
+  44:src/trap.cpp  ****     kputs(" sepc=");                    kputhex(pc);
+ 172              		.loc 1 44 5
+  44:src/trap.cpp  ****     kputs(" sepc=");                    kputhex(pc);
+ 173              		.loc 1 44 10 is_stmt 0
+ 174 00a0 17050000 		lla	a0,.LC0
+ 174      13050500 
+ 175              	.LVL13:
+ 176 00a8 97000000 		call	kputs
+ 176      E7800000 
+ 177              	.LVL14:
+  44:src/trap.cpp  ****     kputs(" sepc=");                    kputhex(pc);
+ 178              		.loc 1 44 41 is_stmt 1
+  44:src/trap.cpp  ****     kputs(" sepc=");                    kputhex(pc);
+ 179              		.loc 1 44 48 is_stmt 0
+ 180 00b0 13850900 		mv	a0,s3
+ 181 00b4 97000000 		call	kputhex
+ 181      E7800000 
+ 182              	.LVL15:
+  45:src/trap.cpp  ****     kputc('\n');
+ 183              		.loc 1 45 5 is_stmt 1
+  45:src/trap.cpp  ****     kputc('\n');
+ 184              		.loc 1 45 10 is_stmt 0
+ 185 00bc 17050000 		lla	a0,.LC1
+ 185      13050500 
+ 186 00c4 97000000 		call	kputs
+ 186      E7800000 
+ 187              	.LVL16:
+  45:src/trap.cpp  ****     kputc('\n');
+ 188              		.loc 1 45 41 is_stmt 1
+  45:src/trap.cpp  ****     kputc('\n');
+ 189              		.loc 1 45 48 is_stmt 0
+ 190 00cc 13050900 		mv	a0,s2
+ 191 00d0 97000000 		call	kputhex
+ 191      E7800000 
+ 192              	.LVL17:
+  46:src/trap.cpp  ****     kpanic("trap");
+ 193              		.loc 1 46 5 is_stmt 1
+  46:src/trap.cpp  ****     kpanic("trap");
+ 194              		.loc 1 46 10 is_stmt 0
+ 195 00d8 1305A000 		li	a0,10
+ 196 00dc 97000000 		call	kputc
+ 196      E7800000 
+GAS LISTING /tmp/ccT6neYC.s 			page 6
+
+
+ 197              	.LVL18:
+  47:src/trap.cpp  **** }
+ 198              		.loc 1 47 5 is_stmt 1
+  47:src/trap.cpp  **** }
+ 199              		.loc 1 47 11 is_stmt 0
+ 200 00e4 17050000 		lla	a0,.LC2
+ 200      13050500 
+ 201 00ec 97000000 		call	kpanic
+ 201      E7800000 
+ 202              	.LVL19:
+ 203              		.cfi_endproc
+ 204              	.LFE0:
+ 206              	.Letext0:
+ 207              		.file 2 "src/../lib/hw.h"
+ 208              		.file 3 "src/../h/MemoryAllocator.hpp"
+ 209              		.file 4 "src/../h/debug.hpp"
+GAS LISTING /tmp/ccT6neYC.s 			page 7
+
+
+DEFINED SYMBOLS
+                            *ABS*:0000000000000000 trap.cpp
+     /tmp/ccT6neYC.s:23     .text:0000000000000000 c_trap_handler
+     /tmp/ccT6neYC.s:27     .text:0000000000000000 .L0 
+     /tmp/ccT6neYC.s:29     .text:0000000000000000 .L0 
+     /tmp/ccT6neYC.s:30     .text:0000000000000004 .L0 
+     /tmp/ccT6neYC.s:36     .text:0000000000000018 .L0 
+     /tmp/ccT6neYC.s:37     .text:0000000000000018 .L0 
+     /tmp/ccT6neYC.s:38     .text:0000000000000018 .L0 
+     /tmp/ccT6neYC.s:39     .text:0000000000000018 .L0 
+     /tmp/ccT6neYC.s:40     .text:0000000000000018 .L0 
+     /tmp/ccT6neYC.s:42     .text:000000000000001c .L0 
+     /tmp/ccT6neYC.s:45     .text:000000000000001c .L0 
+     /tmp/ccT6neYC.s:46     .text:000000000000001c .L0 
+        src/trap.cpp:16     .text:000000000000001c .L0 
+     /tmp/ccT6neYC.s:55     .text:0000000000000020 .L0 
+     /tmp/ccT6neYC.s:57     .text:0000000000000020 .L0 
+     /tmp/ccT6neYC.s:58     .text:0000000000000020 .L0 
+        src/trap.cpp:17     .text:0000000000000020 .L0 
+     /tmp/ccT6neYC.s:67     .text:0000000000000024 .L0 
+     /tmp/ccT6neYC.s:69     .text:0000000000000024 .L0 
+     /tmp/ccT6neYC.s:70     .text:0000000000000024 .L0 
+     /tmp/ccT6neYC.s:72     .text:0000000000000028 .L0 
+     /tmp/ccT6neYC.s:78     .text:0000000000000034 .L0 
+     /tmp/ccT6neYC.s:79     .text:0000000000000034 .L0 
+     /tmp/ccT6neYC.s:81     .text:0000000000000038 .L0 
+     /tmp/ccT6neYC.s:87     .text:0000000000000048 .L0 
+     /tmp/ccT6neYC.s:88     .text:0000000000000048 .L0 
+     /tmp/ccT6neYC.s:89     .text:0000000000000048 .L0 
+     /tmp/ccT6neYC.s:92     .text:0000000000000050 .L0 
+     /tmp/ccT6neYC.s:95     .text:0000000000000054 .L0 
+     /tmp/ccT6neYC.s:97     .text:0000000000000054 .L0 
+     /tmp/ccT6neYC.s:98     .text:0000000000000054 .L0 
+     /tmp/ccT6neYC.s:99     .text:0000000000000054 .L0 
+     /tmp/ccT6neYC.s:102    .text:0000000000000058 .L0 
+     /tmp/ccT6neYC.s:103    .text:0000000000000058 .L0 
+     /tmp/ccT6neYC.s:108    .text:0000000000000064 .L0 
+     /tmp/ccT6neYC.s:114    .text:0000000000000068 .L0 
+     /tmp/ccT6neYC.s:116    .text:0000000000000068 .L0 
+     /tmp/ccT6neYC.s:117    .text:0000000000000068 .L0 
+        src/trap.cpp:39     .text:000000000000006c .L0 
+     /tmp/ccT6neYC.s:129    .text:0000000000000070 .L0 
+     /tmp/ccT6neYC.s:130    .text:0000000000000070 .L0 
+     /tmp/ccT6neYC.s:131    .text:0000000000000074 .L0 
+     /tmp/ccT6neYC.s:132    .text:0000000000000074 .L0 
+     /tmp/ccT6neYC.s:134    .text:0000000000000078 .L0 
+     /tmp/ccT6neYC.s:135    .text:0000000000000078 .L0 
+     /tmp/ccT6neYC.s:137    .text:000000000000007c .L0 
+     /tmp/ccT6neYC.s:140    .text:0000000000000080 .L0 
+     /tmp/ccT6neYC.s:143    .text:0000000000000084 .L0 
+     /tmp/ccT6neYC.s:146    .text:0000000000000088 .L0 
+     /tmp/ccT6neYC.s:150    .text:000000000000008c .L0 
+     /tmp/ccT6neYC.s:156    .text:000000000000008c .L0 
+     /tmp/ccT6neYC.s:157    .text:000000000000008c .L0 
+     /tmp/ccT6neYC.s:158    .text:000000000000008c .L0 
+     /tmp/ccT6neYC.s:159    .text:000000000000008c .L0 
+     /tmp/ccT6neYC.s:163    .text:0000000000000098 .L0 
+GAS LISTING /tmp/ccT6neYC.s 			page 8
+
+
+     /tmp/ccT6neYC.s:165    .text:000000000000009c .L0 
+     /tmp/ccT6neYC.s:173    .text:00000000000000a0 .L0 
+     /tmp/ccT6neYC.s:174    .text:00000000000000a0 .L0 
+     /tmp/ccT6neYC.s:179    .text:00000000000000b0 .L0 
+     /tmp/ccT6neYC.s:180    .text:00000000000000b0 .L0 
+     /tmp/ccT6neYC.s:184    .text:00000000000000bc .L0 
+     /tmp/ccT6neYC.s:185    .text:00000000000000bc .L0 
+     /tmp/ccT6neYC.s:189    .text:00000000000000cc .L0 
+     /tmp/ccT6neYC.s:190    .text:00000000000000cc .L0 
+     /tmp/ccT6neYC.s:194    .text:00000000000000d8 .L0 
+     /tmp/ccT6neYC.s:195    .text:00000000000000d8 .L0 
+     /tmp/ccT6neYC.s:199    .text:00000000000000e4 .L0 
+     /tmp/ccT6neYC.s:200    .text:00000000000000e4 .L0 
+     /tmp/ccT6neYC.s:203    .text:00000000000000f4 .L0 
+     /tmp/ccT6neYC.s:210    .text:00000000000000f4 .L0 
+     /tmp/ccT6neYC.s:11     .rodata.str1.8:0000000000000000 .LC0
+     /tmp/ccT6neYC.s:174    .text:00000000000000a0 .L0 
+     /tmp/ccT6neYC.s:14     .rodata.str1.8:0000000000000020 .LC1
+     /tmp/ccT6neYC.s:185    .text:00000000000000bc .L0 
+     /tmp/ccT6neYC.s:17     .rodata.str1.8:0000000000000028 .LC2
+     /tmp/ccT6neYC.s:200    .text:00000000000000e4 .L0 
+     /tmp/ccT6neYC.s:167    .text:00000000000000a0 .L2
+     /tmp/ccT6neYC.s:93     .text:0000000000000054 .L3
+     /tmp/ccT6neYC.s:149    .text:000000000000008c .L4
+     /tmp/ccT6neYC.s:110    .text:0000000000000068 .L6
+     /tmp/ccT6neYC.s:743    .debug_abbrev:0000000000000000 .Ldebug_abbrev0
+     /tmp/ccT6neYC.s:1356   .debug_str:000000000000005d .LASF36
+     /tmp/ccT6neYC.s:1414   .debug_str:0000000000000308 .LASF37
+     /tmp/ccT6neYC.s:1364   .debug_str:000000000000015f .LASF38
+     /tmp/ccT6neYC.s:8      .text:0000000000000000 .Ltext0
+     /tmp/ccT6neYC.s:206    .text:00000000000000f4 .Letext0
+     /tmp/ccT6neYC.s:1342   .debug_line:0000000000000000 .Ldebug_line0
+     /tmp/ccT6neYC.s:1398   .debug_str:0000000000000297 .LASF0
+     /tmp/ccT6neYC.s:1380   .debug_str:0000000000000207 .LASF1
+     /tmp/ccT6neYC.s:1376   .debug_str:00000000000001e7 .LASF2
+     /tmp/ccT6neYC.s:1362   .debug_str:0000000000000158 .LASF4
+     /tmp/ccT6neYC.s:1378   .debug_str:00000000000001f5 .LASF3
+     /tmp/ccT6neYC.s:1350   .debug_str:0000000000000040 .LASF5
+     /tmp/ccT6neYC.s:1344   .debug_str:0000000000000000 .LASF6
+     /tmp/ccT6neYC.s:1372   .debug_str:00000000000001c5 .LASF7
+     /tmp/ccT6neYC.s:1402   .debug_str:00000000000002ab .LASF8
+     /tmp/ccT6neYC.s:1360   .debug_str:000000000000014a .LASF9
+     /tmp/ccT6neYC.s:1432   .debug_str:000000000000035d .LASF10
+     /tmp/ccT6neYC.s:1374   .debug_str:00000000000001d8 .LASF11
+     /tmp/ccT6neYC.s:1422   .debug_str:0000000000000333 .LASF12
+     /tmp/ccT6neYC.s:1410   .debug_str:00000000000002f3 .LASF13
+     /tmp/ccT6neYC.s:1382   .debug_str:000000000000021a .LASF14
+     /tmp/ccT6neYC.s:1368   .debug_str:00000000000001a9 .LASF15
+     /tmp/ccT6neYC.s:1406   .debug_str:00000000000002c1 .LASF16
+     /tmp/ccT6neYC.s:1348   .debug_str:0000000000000030 .LASF39
+     /tmp/ccT6neYC.s:1430   .debug_str:0000000000000356 .LASF27
+     /tmp/ccT6neYC.s:1352   .debug_str:0000000000000047 .LASF17
+     /tmp/ccT6neYC.s:1400   .debug_str:00000000000002a4 .LASF18
+     /tmp/ccT6neYC.s:1366   .debug_str:00000000000001a4 .LASF23
+     /tmp/ccT6neYC.s:1408   .debug_str:00000000000002d7 .LASF25
+     /tmp/ccT6neYC.s:1420   .debug_str:000000000000032d .LASF19
+     /tmp/ccT6neYC.s:1346   .debug_str:0000000000000013 .LASF21
+GAS LISTING /tmp/ccT6neYC.s 			page 9
+
+
+     /tmp/ccT6neYC.s:1412   .debug_str:0000000000000303 .LASF20
+     /tmp/ccT6neYC.s:1386   .debug_str:0000000000000230 .LASF22
+     /tmp/ccT6neYC.s:1370   .debug_str:00000000000001bf .LASF24
+     /tmp/ccT6neYC.s:1394   .debug_str:0000000000000272 .LASF26
+     /tmp/ccT6neYC.s:1354   .debug_str:000000000000004c .LASF40
+     /tmp/ccT6neYC.s:1358   .debug_str:0000000000000121 .LASF41
+     /tmp/ccT6neYC.s:1390   .debug_str:0000000000000253 .LASF42
+     /tmp/ccT6neYC.s:1418   .debug_str:0000000000000324 .LASF43
+     /tmp/ccT6neYC.s:1392   .debug_str:0000000000000259 .LASF44
+     /tmp/ccT6neYC.s:1384   .debug_str:0000000000000226 .LASF28
+     /tmp/ccT6neYC.s:1416   .debug_str:0000000000000315 .LASF29
+     /tmp/ccT6neYC.s:24     .text:0000000000000000 .LFB0
+     /tmp/ccT6neYC.s:204    .text:00000000000000f4 .LFE0
+     /tmp/ccT6neYC.s:1246   .debug_loc:0000000000000000 .LLST0
+     /tmp/ccT6neYC.s:1404   .debug_str:00000000000002bb .LASF30
+     /tmp/ccT6neYC.s:1279   .debug_loc:0000000000000088 .LLST1
+     /tmp/ccT6neYC.s:1290   .debug_loc:00000000000000be .LLST2
+     /tmp/ccT6neYC.s:44     .text:000000000000001c .LBB2
+     /tmp/ccT6neYC.s:54     .text:0000000000000020 .LBE2
+     /tmp/ccT6neYC.s:56     .text:0000000000000020 .LBB3
+     /tmp/ccT6neYC.s:66     .text:0000000000000024 .LBE3
+     /tmp/ccT6neYC.s:96     .text:0000000000000054 .LBB8
+     /tmp/ccT6neYC.s:111    .text:0000000000000068 .LBE8
+     /tmp/ccT6neYC.s:1424   .debug_str:0000000000000343 .LASF31
+     /tmp/ccT6neYC.s:1307   .debug_loc:0000000000000109 .LLST5
+     /tmp/ccT6neYC.s:106    .text:0000000000000064 .LVL5
+     /tmp/ccT6neYC.s:115    .text:0000000000000068 .LBB10
+     /tmp/ccT6neYC.s:125    .text:0000000000000070 .LBE10
+     /tmp/ccT6neYC.s:1322   .debug_loc:0000000000000143 .LLST6
+     /tmp/ccT6neYC.s:161    .text:0000000000000098 .LVL11
+     /tmp/ccT6neYC.s:177    .text:00000000000000b0 .LVL14
+     /tmp/ccT6neYC.s:182    .text:00000000000000bc .LVL15
+     /tmp/ccT6neYC.s:187    .text:00000000000000cc .LVL16
+     /tmp/ccT6neYC.s:192    .text:00000000000000d8 .LVL17
+     /tmp/ccT6neYC.s:197    .text:00000000000000e4 .LVL18
+     /tmp/ccT6neYC.s:202    .text:00000000000000f4 .LVL19
+     /tmp/ccT6neYC.s:1388   .debug_str:000000000000024d .LASF32
+     /tmp/ccT6neYC.s:1396   .debug_str:000000000000028f .LASF33
+     /tmp/ccT6neYC.s:1426   .debug_str:0000000000000349 .LASF34
+     /tmp/ccT6neYC.s:1428   .debug_str:000000000000034f .LASF35
+     /tmp/ccT6neYC.s:28     .text:0000000000000000 .LVL0
+     /tmp/ccT6neYC.s:100    .text:0000000000000058 .LVL3
+     /tmp/ccT6neYC.s:138    .text:000000000000007c .LVL7
+     /tmp/ccT6neYC.s:148    .text:000000000000008c .LVL10
+     /tmp/ccT6neYC.s:166    .text:00000000000000a0 .LVL12
+     /tmp/ccT6neYC.s:175    .text:00000000000000a8 .LVL13
+     /tmp/ccT6neYC.s:51     .text:0000000000000020 .LVL1
+     /tmp/ccT6neYC.s:144    .text:0000000000000084 .LVL9
+     /tmp/ccT6neYC.s:63     .text:0000000000000024 .LVL2
+     /tmp/ccT6neYC.s:118    .text:000000000000006c .LVL6
+     /tmp/ccT6neYC.s:141    .text:0000000000000080 .LVL8
+     /tmp/ccT6neYC.s:104    .text:000000000000005c .LVL4
+     /tmp/ccT6neYC.s:211    .debug_info:0000000000000000 .Ldebug_info0
+
+UNDEFINED SYMBOLS
+_ZN15MemoryAllocator5allocEm
+_ZN15MemoryAllocator4freeEPv
+GAS LISTING /tmp/ccT6neYC.s 			page 10
+
+
+kputs
+kputhex
+kputc
+kpanic

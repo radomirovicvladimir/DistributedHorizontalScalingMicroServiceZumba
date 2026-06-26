@@ -43,7 +43,7 @@ extern "C" __attribute__((noreturn)) void khalt() {
     for (;;) { /* unreachable, but compiler doesn't know */ }
 }
 
-extern "C" __attribute__((noreturn)) void panic(const char* msg) {
+extern "C" __attribute__((noreturn)) void kpanic(const char* msg) {
     kputs("\nPANIC: ");
     kputs(msg);
     kputc('\n');

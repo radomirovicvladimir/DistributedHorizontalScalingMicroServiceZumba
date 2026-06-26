@@ -14,14 +14,21 @@ public:
     // One-time init. Call from main() before anything else allocates.
     static void  init();
 
-    // bytes -> 16-aligned pointer or nullptr. Header sits at (ptr - 16).
+    // User-facing: bytes -> 16-aligned pointer or nullptr.
+    // Rounds (bytes + sizeof(Header)) up to whole blocks internally.
     static void* alloc(size_t bytes);
+
+    // Kernel/ABI-facing: takes payload size already expressed in BLOCKS
+    // (i.e. what the ABI delivers in a1 for SYS_MEM_ALLOC, see PDF p.8).
+    // Adds one block for the header internally. Use from the trap dispatcher
+    // so we don't round-trip blocks -> bytes -> blocks.
+    static void* alloc_blocks(size_t payload_blocks);
 
     // 0 on success, -1 on a pointer that obviously isn't ours (out of bounds).
     // Coalesces with both neighbors in the freelist.
     static int   free(void* ptr);
 
-    // Debug invariant walker. Panics on any violation. No-op in release builds.
+    // Debug invariant walker. Panics on any violation.
     static void  check();
 
     // Stats for tests/debug.

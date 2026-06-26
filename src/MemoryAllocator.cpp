@@ -25,15 +25,14 @@ void MemoryAllocator::init() {
 
 // ---- alloc ----------------------------------------------------------------
 
-void* MemoryAllocator::alloc(size_t bytes) {
-    if (bytes == 0) return nullptr;
+void* MemoryAllocator::alloc_blocks(size_t payload_blocks) {
+    if (payload_blocks == 0) return nullptr;
 
-    // We need enough space for the user's payload AND our header, rounded up
-    // to whole blocks.
-    size_t need_bytes = bytes + sizeof(Header);
-    // Overflow guard (degenerate but cheap).
-    if (need_bytes < bytes) return nullptr;
-    size_t need = (need_bytes + MEM_BLOCK_SIZE - 1) / MEM_BLOCK_SIZE;
+    // Reserve one extra block for our header. (Header is 16B; we round to
+    // a whole block to keep payload pointers block-aligned.)
+    size_t need = payload_blocks + 1;
+    // Overflow guard.
+    if (need < payload_blocks) return nullptr;
 
     Header** pp = &freelist;
     for (Header* p = freelist; p != nullptr; pp = &p->next, p = p->next) {
@@ -54,6 +53,13 @@ void* MemoryAllocator::alloc(size_t bytes) {
     }
 
     return nullptr;   // heap exhausted (or too fragmented for this request)
+}
+
+void* MemoryAllocator::alloc(size_t bytes) {
+    if (bytes == 0) return nullptr;
+    // Round payload up to whole blocks; alloc_blocks adds the header block.
+    size_t payload_blocks = (bytes + MEM_BLOCK_SIZE - 1) / MEM_BLOCK_SIZE;
+    return alloc_blocks(payload_blocks);
 }
 
 // ---- free -----------------------------------------------------------------

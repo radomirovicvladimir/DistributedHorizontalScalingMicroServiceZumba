@@ -20,10 +20,10 @@ extern "C" void c_trap_handler(TrapFrame* f) {
         // Syscall: dispatch by a0, result goes back in a0.
         switch (f->a0) {
             case SYS_MEM_ALLOC: {
-                // ABI: a1 = size IN BLOCKS (PDF p.8). Convert back to bytes for
-                // the allocator's public API and let it re-round (header etc).
-                size_t bytes = (size_t)f->a1 * MEM_BLOCK_SIZE;
-                f->a0 = (uint64)MemoryAllocator::alloc(bytes);
+                // ABI: a1 = size IN BLOCKS of payload (PDF p.8). The C-API
+                // wrapper has already rounded user bytes up to whole blocks.
+                // Call alloc_blocks directly — no blocks->bytes->blocks dance.
+                f->a0 = (uint64)MemoryAllocator::alloc_blocks((size_t)f->a1);
                 break;
             }
             case SYS_MEM_FREE: {

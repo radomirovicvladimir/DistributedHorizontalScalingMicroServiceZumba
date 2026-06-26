@@ -4,179 +4,140 @@
 #include "../h/MemoryAllocator.hpp"
 #include "../h/syscall_c.h"
 
-// Trap entry point — defined in trap_entry.S.
-extern "C" void trap_entry();
+extern "C" void trap_entry();   // defined in trap_entry.S
 
-// ---- test helpers ---------------------------------------------------------
+// ---- test harness --------------------------------------------------------
 
-static int tests_run = 0;
-static int tests_failed = 0;
+static int n_run = 0, n_fail = 0;
 
-static void check_bool(const char* name, bool ok) {
-    tests_run++;
-    kputs(ok ? "  [ OK ] " : "  [FAIL] ");
-    kputs(name);
-    kputc('\n');
-    if (!ok) tests_failed++;
-}
+#define CHECK(name, expr) do {                              \
+    bool _ok = (expr);                                       \
+    n_run++; if (!_ok) n_fail++;                             \
+    kputs(_ok ? "  [ OK ] " : "  [FAIL] "); kputs(name);     \
+    kputc('\n');                                             \
+} while (0)
 
 static bool in_heap(void* p) {
-    return p != nullptr &&
-           (uint64)p >= (uint64)HEAP_START_ADDR &&
-           (uint64)p <  (uint64)HEAP_END_ADDR;
+    return p && (uint64)p >= (uint64)HEAP_START_ADDR
+              && (uint64)p <  (uint64)HEAP_END_ADDR;
 }
 
 // ---- direct-call tests (no trap) -----------------------------------------
 
 static void direct_tests() {
     kputs("\n-- direct (MemoryAllocator::*) --\n");
+    size_t free0 = MemoryAllocator::free_bytes();
 
-    MemoryAllocator::check();
-    size_t free0 = MemoryAllocator::total_free_bytes();
-
-    void* p1 = MemoryAllocator::alloc(100);
-    void* p2 = MemoryAllocator::alloc(4096);
-    void* p3 = MemoryAllocator::alloc(1);
-    check_bool("alloc(100) in heap",  in_heap(p1));
-    check_bool("alloc(4096) in heap", in_heap(p2));
-    check_bool("alloc(1) in heap",    in_heap(p3));
-    check_bool("alloc 16-aligned p1", ((uint64)p1 & 0xF) == 0);
-    check_bool("alloc 16-aligned p2", ((uint64)p2 & 0xF) == 0);
-    check_bool("alloc 16-aligned p3", ((uint64)p3 & 0xF) == 0);
-
+    void *p1 = MemoryAllocator::alloc(100),
+         *p2 = MemoryAllocator::alloc(4096),
+         *p3 = MemoryAllocator::alloc(1);
+    CHECK("alloc(100) in heap",  in_heap(p1));
+    CHECK("alloc(4096) in heap", in_heap(p2));
+    CHECK("alloc(1) in heap",    in_heap(p3));
+    CHECK("p1 16-aligned", ((uint64)p1 & 0xF) == 0);
+    CHECK("p2 16-aligned", ((uint64)p2 & 0xF) == 0);
+    CHECK("p3 16-aligned", ((uint64)p3 & 0xF) == 0);
     MemoryAllocator::check();
 
-    // Reuse: free EVERYTHING (so the heap is one chunk again), then alloc the
-    // same shape. First-fit will hand back the same tail address.
-    //
-    // Note: freeing just one allocation while two others are still live does
-    // NOT guarantee re-use, because first-fit will pick whichever free node
-    // appears first in the address-sorted list — which is usually the big
-    // free remainder, not the small just-freed block.
+    // Free everything first; first-fit then hands back the same address.
+    // (Freeing one while others are live can't guarantee reuse — the big
+    // free remainder usually appears first in the address-sorted list.)
     MemoryAllocator::free(p1);
     MemoryAllocator::free(p2);
     MemoryAllocator::free(p3);
     MemoryAllocator::check();
-    check_bool("free restored full heap", MemoryAllocator::total_free_bytes() == free0);
+    CHECK("full free restored heap", MemoryAllocator::free_bytes() == free0);
 
     void* p1b = MemoryAllocator::alloc(100);
-    check_bool("reuse after full free", p1b == p1);
+    CHECK("reuse after full free", p1b == p1);
     MemoryAllocator::free(p1b);
 
-    // free(NULL) is no-op.
-    check_bool("free(NULL) == 0", MemoryAllocator::free(nullptr) == 0);
+    CHECK("free(NULL) == 0",   MemoryAllocator::free(nullptr) == 0);
+    CHECK("free(bogus) == -1", MemoryAllocator::free((void*)0xdeadbeefUL) == -1);
 
-    // Bogus free is rejected.
-    check_bool("free(bogus) == -1",
-               MemoryAllocator::free((void*)0xdeadbeefUL) == -1);
+    void* dfp = MemoryAllocator::alloc(64);
+    CHECK("first free == 0",    MemoryAllocator::free(dfp) == 0);
+    CHECK("double-free == -1",  MemoryAllocator::free(dfp) == -1);
+    MemoryAllocator::check();
 
-    // Zero alloc.
-    check_bool("alloc(0) == NULL", MemoryAllocator::alloc(0) == nullptr);
+    CHECK("alloc(0) == NULL", MemoryAllocator::alloc(0) == nullptr);
 }
 
 // ---- e2e tests (through ecall) -------------------------------------------
 
 static void e2e_tests() {
     kputs("\n-- e2e (mem_alloc / mem_free via ecall) --\n");
+    size_t free0 = MemoryAllocator::free_bytes();
 
-    size_t free0 = MemoryAllocator::total_free_bytes();
-
-    void* p1 = mem_alloc(100);
-    void* p2 = mem_alloc(4096);
-    check_bool("ecall mem_alloc(100)",  in_heap(p1));
-    check_bool("ecall mem_alloc(4096)", in_heap(p2));
-
-    int r1 = mem_free(p1);
-    check_bool("ecall mem_free(p1) == 0", r1 == 0);
+    void *p1 = mem_alloc(100), *p2 = mem_alloc(4096);
+    CHECK("ecall mem_alloc(100)",  in_heap(p1));
+    CHECK("ecall mem_alloc(4096)", in_heap(p2));
+    CHECK("ecall mem_free(p1)",    mem_free(p1) == 0);
     mem_free(p2);
-    check_bool("ecall full free restored heap",
-               MemoryAllocator::total_free_bytes() == free0);
+    CHECK("ecall full free",       MemoryAllocator::free_bytes() == free0);
 
-    // After the heap is one chunk again, first-fit will hand back the same
-    // tail address. (See note in direct_tests().)
     void* p1b = mem_alloc(100);
-    check_bool("ecall reuse after full free", p1b == p1);
+    CHECK("ecall reuse", p1b == p1);
     mem_free(p1b);
 
-    // C++ new/delete (also goes through ecall).
     struct Foo { uint64 x[8]; virtual ~Foo() {} };
     Foo* f = new Foo;
-    check_bool("new Foo in heap", in_heap(f));
+    CHECK("new Foo in heap",  in_heap(f));
     delete f;
-    check_bool("delete restored heap",
-               MemoryAllocator::total_free_bytes() == free0);
+    CHECK("delete restored",  MemoryAllocator::free_bytes() == free0);
 }
 
 // ---- stress / fragmentation ----------------------------------------------
 
 static void stress_tests() {
     kputs("\n-- stress --\n");
+    size_t free0 = MemoryAllocator::free_bytes();
 
-    size_t free0 = MemoryAllocator::total_free_bytes();
-
-    // Exhaust the heap with 4 KB allocations, then free them all.
     const int N = 64;
-    void* buf[N];
-    int allocated = 0;
-    for (int i = 0; i < N; i++) {
-        buf[i] = mem_alloc(4096);
-        if (!buf[i]) break;
-        allocated++;
-    }
-    kputs("  allocated 4KB blocks: "); kputdec(allocated); kputc('\n');
-    check_bool("at least 64 x 4KB fit (heap is ~128MB)", allocated == N);
-    // Successive splits come off the tail of the same free chunk, so each
-    // returned pointer is below the previous one.
-    bool descending = true;
-    for (int i = 1; i < allocated; i++)
-        if (buf[i] >= buf[i-1]) { descending = false; break; }
-    check_bool("stress: 4KB allocs are address-descending", descending);
+    void* buf[N]; int got = 0;
+    while (got < N && (buf[got] = mem_alloc(4096))) got++;
+    kputs("  allocated 4KB blocks: "); kputdec(got); kputc('\n');
+    CHECK("64 x 4KB fit", got == N);
 
-    for (int i = 0; i < allocated; i++) mem_free(buf[i]);
+    bool desc = true;
+    for (int i = 1; i < got; i++)
+        if (buf[i] >= buf[i-1]) { desc = false; break; }
+    CHECK("4KB allocs descend", desc);
+
+    for (int i = 0; i < got; i++) mem_free(buf[i]);
     MemoryAllocator::check();
-    check_bool("stress: free restored full heap",
-               MemoryAllocator::total_free_bytes() == free0);
+    CHECK("stress free restored", MemoryAllocator::free_bytes() == free0);
 
-    // Fragmentation: alloc 40 small, free every other, then try one big.
     const int M = 40;
-    void* small[M];
-    for (int i = 0; i < M; i++) small[i] = mem_alloc(128);
-    for (int i = 0; i < M; i += 2) mem_free(small[i]);
+    void* sm[M];
+    for (int i = 0; i < M; i++) sm[i] = mem_alloc(128);
+    for (int i = 0; i < M; i += 2) mem_free(sm[i]);
     MemoryAllocator::check();
-    // After freeing odd-indexed-only, freelist has many small holes; clean up.
-    for (int i = 1; i < M; i += 2) mem_free(small[i]);
+    for (int i = 1; i < M; i += 2) mem_free(sm[i]);
     MemoryAllocator::check();
-    check_bool("fragmentation: full free restored heap",
-               MemoryAllocator::total_free_bytes() == free0);
+    CHECK("fragmentation restored", MemoryAllocator::free_bytes() == free0);
 }
 
 // ---- entry ----------------------------------------------------------------
 
 extern "C" void main() {
     kputs("==== OS1 boot ====\n");
-    kputs("HEAP_START_ADDR = "); kputhex((uint64)HEAP_START_ADDR); kputc('\n');
-    kputs("HEAP_END_ADDR   = "); kputhex((uint64)HEAP_END_ADDR);   kputc('\n');
-    kputs("HEAP_SIZE       = ");
-        kputdec((uint64)HEAP_END_ADDR - (uint64)HEAP_START_ADDR);  kputs(" bytes\n");
+    kputs("HEAP "); kputhex((uint64)HEAP_START_ADDR);
+    kputs(" .. ");  kputhex((uint64)HEAP_END_ADDR);
+    kputs(" ("); kputdec((uint64)HEAP_END_ADDR - (uint64)HEAP_START_ADDR);
+    kputs(" B)\n");
 
     MemoryAllocator::init();
-    kputs("free after init = "); kputdec(MemoryAllocator::total_free_bytes());
-    kputs(" bytes\n");
-
     direct_tests();
 
-    // Install our trap vector and run the same tests through ecall.
     WRITE_CSR(stvec, (uint64)&trap_entry);
-    kputs("\nstvec installed: "); kputhex((uint64)&trap_entry); kputc('\n');
-
     e2e_tests();
     stress_tests();
 
-    kputs("\n==== Task 1 tests: ");
-    kputdec(tests_run - tests_failed); kputc('/'); kputdec(tests_run);
+    kputs("\n==== Task 1: ");
+    kputdec(n_run - n_fail); kputc('/'); kputdec(n_run);
     kputs(" passed ====\n");
 
-    if (tests_failed != 0) kpanic("one or more tests failed");
-    kputs("ALL OK — halting QEMU\n");
+    if (n_fail) kpanic("one or more tests failed");
     khalt();
 }

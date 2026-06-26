@@ -1,51 +1,22 @@
 #pragma once
 #include "../lib/hw.h"
 
-// Singleton memory allocator over [HEAP_START_ADDR, HEAP_END_ADDR).
-// PDF §"Ključne apstrakcije" (p.21) names this class explicitly as singleton.
-// Algorithm: K&R-style first-fit, address-sorted freelist, coalesce on free.
-// Sizes are tracked in BLOCKS (units of MEM_BLOCK_SIZE = 64 B).
-//
-// Not thread-safe by design — the kernel is non-preemptive and runs the trap
-// handler with interrupts masked, so syscalls are mutually exclusive.
-
+// First-fit allocator over [HEAP_START_ADDR, HEAP_END_ADDR).
+// Sorted, coalescing freelist. Sizes tracked in MEM_BLOCK_SIZE blocks.
+// Not thread-safe — relies on non-preemptive kernel + masked interrupts.
 class MemoryAllocator {
 public:
-    // One-time init. Call from main() before anything else allocates.
-    static void  init();
-
-    // User-facing: bytes -> 16-aligned pointer or nullptr.
-    // Rounds (bytes + sizeof(Header)) up to whole blocks internally.
-    static void* alloc(size_t bytes);
-
-    // Kernel/ABI-facing: takes payload size already expressed in BLOCKS
-    // (i.e. what the ABI delivers in a1 for SYS_MEM_ALLOC, see PDF p.8).
-    // Adds one block for the header internally. Use from the trap dispatcher
-    // so we don't round-trip blocks -> bytes -> blocks.
-    static void* alloc_blocks(size_t payload_blocks);
-
-    // 0 on success, -1 on a pointer that obviously isn't ours (out of bounds).
-    // Coalesces with both neighbors in the freelist.
-    static int   free(void* ptr);
-
-    // Debug invariant walker. Panics on any violation.
-    static void  check();
-
-    // Stats for tests/debug.
-    static size_t total_free_bytes();
-
-    // Block size (re-exported for symmetry; same as MEM_BLOCK_SIZE from hw.h).
-    static const size_t BLOCK = MEM_BLOCK_SIZE;
+    static void   init();
+    static void*  alloc(size_t bytes);            // user-facing, rounds up
+    static void*  alloc_blocks(size_t payload);   // ABI-facing, payload in blocks
+    static int    free(void* ptr);                // 0 ok, -1 bogus/double-free
+    static void   check();                        // panics on broken freelist
+    static size_t free_bytes();                   // for tests
 
 private:
-    struct Header {
-        Header* next;        // next free node (address-sorted), nullptr terminates
-        size_t  blocks;      // size of THIS block, header included, in BLOCK units
-    };
-    // We rely on sizeof(Header) == 16 so payload after the header stays 16-aligned.
-    static_assert(sizeof(Header) == 16, "Header must be exactly 16 bytes");
+    struct Node { Node* next; size_t blocks; };   // 16B; doubles as in-use header
+    static_assert(sizeof(Node) == 16, "Node must be 16 bytes");
+    static Node* head;
 
-    static Header* freelist;
-
-    MemoryAllocator() = delete;   // singleton: static-only, never instantiated
+    MemoryAllocator() = delete;
 };

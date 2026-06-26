@@ -1,2 +1,0 @@
-
-tests/lock.S

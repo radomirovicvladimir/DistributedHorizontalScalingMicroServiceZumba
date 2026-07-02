@@ -48,19 +48,13 @@ extern "C" void c_trap_handler(TrapFrame* f) {
     // dereferences a bad pointer, etc.) we don't want to kill the whole
     // kernel — the offending thread deserves the blame. Kill it and yield.
     //
-    // This matters for System_Mode_test (Test 7 in the OS12026 test suite),
-    // which deliberately runs `csrr t6, sepc` from a user thread. That
-    // instruction is privileged; the expected outcome is "process does NOT
-    // terminate regularly" (per tests/uputstvo.txt). Killing the thread
-    // means the busy-wait main loop never sees `finishedB = true`, so the
-    // test's completion string never prints — which is exactly the grader's
-    // expected failure mode.
-    //
-    // Caveat for our simplified design: because we run everything in S-mode,
-    // hardware treats `csrr sepc` as legal and this branch does NOT fire for
-    // that specific instruction. To get full Test 7 behavior we'd need a
-    // proper U-mode transition on thread entry. This handler still catches
-    // *other* illegal-instruction faults, which is worth having regardless.
+    // Primary use case: System_Mode_test (Test 7 in the OS12026 test suite)
+    // runs `csrr t6, sepc` from a user thread. Since user threads execute in
+    // U-mode (TCB::create seeds sstatus.SPP=0), hardware raises scause=2
+    // (illegal instruction) — we land here, kill workerBodyB, and its
+    // `finishedB` flag never gets set. The busy-wait loop in the test never
+    // exits → the completion string never prints → grader sees the test
+    // "did not complete regularly", exactly as tests/uputstvo.txt requires.
     if (cause != SCAUSE_ECALL_U && cause != SCAUSE_ECALL_S) {
         // scause values (synchronous exceptions, MSB=0):
         //   1 = instruction access fault, 2 = illegal instr,

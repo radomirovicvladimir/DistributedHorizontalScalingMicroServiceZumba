@@ -26,8 +26,11 @@
 
 extern "C" void userMain() {
     printString("Unesite broj testa? [1-7]\n");
-    int test = getc() - '0';
-    getc();                                     // consume the newline
+    char digit = getc();
+    putc(digit);                                // echo so the user sees what they typed
+    putc('\n');
+    int test = digit - '0';
+    getc();                                     // consume the newline (Enter key)
 
     if ((test >= 1 && test <= 2) || test == 7) {
         if (LEVEL_2_IMPLEMENTED == 0) {

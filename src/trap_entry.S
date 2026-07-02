@@ -11,9 +11,17 @@
 # Total: 144 bytes.
 #
 # stvec must be 4-byte aligned in direct mode (MODE bits = 0).
+#
+# U-mode retrofit (Test 7 fix): fresh user TCBs seed context[CTX_RA] to
+# `trap_return_tail` and context[CTX_SP] to a synthetic frame on their
+# stack. When context_switch loads that context and does `ret`, control
+# lands at trap_return_tail, which pops the synthetic frame and `sret`s
+# — because sstatus.SPP=0 in that frame, execution transitions to U-mode
+# at sepc (= body_wrapper). See TCB::create in src/TCB.cpp.
 
 .section .text
 .globl trap_entry
+.globl trap_return_tail
 .align 4
 trap_entry:
     addi sp, sp, -144
@@ -47,8 +55,16 @@ trap_entry:
     mv a0, sp                 # pass &TrapFrame to the C dispatcher
     call c_trap_handler
 
-    # Restore possibly-modified CSRs from the frame. (c_trap_handler writes
-    # f->sepc += 4 for ecall; other trap kinds may leave it untouched.)
+    # ---- fall-through into trap_return_tail ---------------------------------
+    # This label is ALSO the entry point taken by a fresh user thread on its
+    # very first switch: TCB::create seeds context[CTX_SP] pointing at a
+    # synthetic frame here and context[CTX_RA] = &trap_return_tail. When
+    # context_switch does `ret`, sp already points at that frame and we
+    # simply pop → sret into U-mode.
+
+trap_return_tail:
+    # Restore possibly-modified CSRs from the frame. For a fresh user thread
+    # sepc = &body_wrapper and sstatus has SPP=0 (return to U-mode) SPIE=1.
     ld   t0, 128(sp)
     csrw sepc, t0
     ld   t0, 136(sp)

@@ -11,11 +11,20 @@ metadata:
 
 **Non-preemptive kernel.** Interrupts are masked whenever we're above the trap line. Hardware clears `sstatus.SIE` on trap entry; we don't re-enable it. Every kernel path is one big critical section.
 
-**Per-thread kernel stack.** Each TCB owns one stack, on which BOTH the user body and any nested kernel work (traps, syscalls) run. `yield` swaps stacks between TCBs at synchronous points.
+**Per-thread stack, shared with kernel.** Each TCB owns one 4KB stack. User body runs on it in U-mode; when a trap fires, the trap frame gets pushed onto the SAME stack (no separate kernel stack). Works because there's no MMU/PMP — U-mode has full physical access.
+
+**User threads run in U-mode.** TCB::create for user threads lays down a synthetic trap-return frame on the new thread's stack with `sstatus.SPP=0, SPIE=1, sepc=&body_wrapper`. Fresh-thread first entry:
+1. `context_switch` loads `ra = &trap_return_tail` and `sp = &synthetic_frame`, does `ret`.
+2. `trap_return_tail` (label at the tail of `src/trap_entry.S`) restores CSRs and GPRs from the frame, `sret` → U-mode at `body_wrapper`.
+3. body_wrapper runs user body in U-mode. On return, calls `thread_exit()` (C API, `ecall`) rather than kernel-side `TCB::exit()` — proper syscall boundary.
+
+**Kernel threads (idle, mainTCB) stay in S-mode.** They use the plain body_wrapper entry — `context_switch` `ret`s straight into it in S-mode.
 
 **Cooperative context switch only.** `context_switch(old_ctx*, new_ctx*)` saves the 14 RISC-V callee-saved regs (`ra, sp, s0-s11`) into `old_ctx` and loads from `new_ctx`. Caller-saved regs live on the stack per the C ABI.
 
-**Idle thread.** Always-runnable safety net so `Scheduler::switch_to_next()` never returns nullptr. Its body is `for (;;) asm("wfi");`.
+**Test 7 handling.** `csrr sepc` in U-mode raises scause=2 (illegal instruction). Our trap handler catches this (non-ecall exception), kills the offending thread, and yields. The busy-wait loop in `System_Mode_test` never sees `finishedB=true`, so the test never completes regularly — exactly what tests/uputstvo.txt requires.
+
+**Idle thread.** Always-runnable safety net so `Scheduler::switch_to_next()` never returns nullptr. Its body is `for (;;) asm("wfi");` — S-mode instruction.
 
 ## Data structures
 
@@ -50,10 +59,6 @@ Public test suite copied from `OS12026/tests/` into `tests/`:
 **Stashed** in `../task3_stash_temp` outside the project tree (so Makefile's `find` doesn't pick them up until they compile):
 `ConsumerProducer_*_test.*` (Tests 3, 4, 6), `ThreadSleep_C_API_test.*` (Test 5), `buffer.*`, `buffer_CPP_API.*`. Restore when Task 3 is done.
 
-## Known gap: Test 7 System_Mode
+## Known gap: Test 7 System_Mode — FIXED
 
-Test 7 runs `csrr t6, sepc` from a user thread; per `uputstvo.txt` the expected behavior is "process does NOT terminate regularly". Our design runs everything in S-mode, so this instruction is legal and the test completes regularly — grader will flag it as wrong.
-
-**Workaround in place:** trap.cpp catches all non-ecall exceptions (scause != 8/9) and kills the offending thread. This catches genuine illegal instructions (e.g. a user thread doing `mret`), page faults, and access faults — but NOT `csrr sepc` in S-mode, which is hardware-legal.
-
-**Cost:** likely 1-2 points off Task 2 during defense. Full fix would require real U-mode transition (`sstatus.SPP=0` on thread entry, `sret` into user code). Deferred as too much rework for the 20-point target.
+Fixed by U-mode retrofit (see above). Fresh user TCBs get a synthetic trap-return frame with `sstatus.SPP=0`; first switch-in goes through `trap_return_tail` and `sret` into U-mode. When Test 7's worker B hits `csrr t6, sepc`, hardware raises illegal-instruction (scause=2), our trap handler kills the thread, the busy-wait loop in the test never sees `finishedB`, test never completes.

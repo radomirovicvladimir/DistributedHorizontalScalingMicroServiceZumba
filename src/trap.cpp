@@ -4,6 +4,8 @@
 #include "../h/debug.hpp"
 #include "../h/MemoryAllocator.hpp"
 #include "../h/TCB.hpp"
+#include "../h/Scheduler.hpp"
+#include "../h/Semaphore.hpp"
 #include "../lib/console.h"
 
 // MUST mirror src/trap_entry.S exactly. See that file for offset table.
@@ -17,6 +19,10 @@ extern "C" void c_trap_handler(TrapFrame* f) {
     // Read cause from CSR (transient — same for every trap on this HART).
     // sepc/sstatus come from the frame, NOT the live CSRs — see trap_entry.S.
     uint64 cause = READ_CSR(scause);
+
+    // Stash the frame pointer on the running TCB so KSemaphore::signal/close
+    // can later write the woken thread's syscall return into frame->a0.
+    if (TCB::running) TCB::running->trap_frame = f;
 
     // --- async interrupts (MSB=1) ----------------------------------------
     // We enable SEIE (external) so console.lib's __getc unblocks; SSIE
@@ -120,6 +126,59 @@ extern "C" void c_trap_handler(TrapFrame* f) {
             // NOTE: fall through to the common "sepc += 4" at the bottom
             // would double-advance. Return early instead.
             return;
+
+        // --- Task 3 (Semaphores) -----------------------------------------
+        case SYS_SEM_OPEN: {
+            // ABI: a1 = sem_t* out, a2 = unsigned init
+            KSemaphore** handle = (KSemaphore**)f->a1;
+            unsigned init = (unsigned)f->a2;
+            if (!handle) { f->a0 = (uint64)-1; break; }
+            // Kernel-side allocation — no ecall (see feedback-kernel-no-new.md).
+            size_t blocks = (sizeof(KSemaphore) + MEM_BLOCK_SIZE - 1) / MEM_BLOCK_SIZE;
+            void* raw = MemoryAllocator::alloc_blocks(blocks);
+            if (!raw) { f->a0 = (uint64)-1; break; }
+            KSemaphore* s = new (raw) KSemaphore((int)init);
+            *handle = s;
+            f->a0 = 0;
+            break;
+        }
+        case SYS_SEM_CLOSE: {
+            KSemaphore* s = (KSemaphore*)f->a1;
+            if (!s) { f->a0 = (uint64)-1; break; }
+            s->close();
+            s->~KSemaphore();
+            MemoryAllocator::free(s);
+            f->a0 = 0;
+            break;
+        }
+        case SYS_SEM_WAIT:
+        case SYS_SEM_WAIT_N: {
+            KSemaphore* s = (KSemaphore*)f->a1;
+            unsigned n = (f->a0 == SYS_SEM_WAIT_N) ? (unsigned)f->a2 : 1u;
+            if (!s) { f->a0 = (uint64)-1; break; }
+            int r = s->wait(n);
+            if (r == 1) {
+                // Blocked. Advance sepc first so we resume PAST the ecall
+                // when signal wakes us. Then yield. When we come back
+                // (signal writes 0 to frame->a0, or close writes -1), the
+                // trap epilogue restores frame values → sret with a0 set.
+                f->sepc += 4;
+                Scheduler::switch_to_next();
+                return;                          // sepc already advanced
+            }
+            // Immediate result: 0 = acquired, -1 = closed/bad.
+            f->a0 = (uint64)(long)r;
+            break;
+        }
+        case SYS_SEM_SIGNAL:
+        case SYS_SEM_SIGNAL_N: {
+            KSemaphore* s = (KSemaphore*)f->a1;
+            unsigned n = (f->a0 == SYS_SEM_SIGNAL_N) ? (unsigned)f->a2 : 1u;
+            if (!s) { f->a0 = (uint64)-1; break; }
+            int r = s->signal(n);
+            f->a0 = (uint64)(long)r;
+            break;
+        }
 
         default:
             f->a0 = (uint64)-1;

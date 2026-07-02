@@ -47,12 +47,18 @@ void Thread::dispatch() { thread_dispatch(); }
 // Task 4 territory — no-op stub so any app.lib references still link.
 int Thread::sleep(time_t) { return -1; }
 
-// --- Semaphore stubs (implemented properly in Task 3) --------------------
+// --- Semaphore ------------------------------------------------------------
 
-Semaphore::Semaphore(unsigned /*init*/) : myHandle(nullptr) {}
-Semaphore::~Semaphore() {}
-int Semaphore::wait()   { return -1; }
-int Semaphore::signal() { return -1; }
+Semaphore::Semaphore(unsigned init) : myHandle(nullptr) {
+    sem_open(&myHandle, init);
+}
+
+Semaphore::~Semaphore() {
+    if (myHandle) sem_close(myHandle);
+}
+
+int Semaphore::wait()   { return sem_wait(myHandle); }
+int Semaphore::signal() { return sem_signal(myHandle); }
 
 // --- PeriodicThread stub (Task 4 — not implementing) ---------------------
 

@@ -12,7 +12,7 @@
 
 #define LEVEL_1_IMPLEMENTED 1
 #define LEVEL_2_IMPLEMENTED 1
-#define LEVEL_3_IMPLEMENTED 0
+#define LEVEL_3_IMPLEMENTED 1
 #define LEVEL_4_IMPLEMENTED 0
 
 #if LEVEL_2_IMPLEMENTED == 1
@@ -21,7 +21,11 @@
 #include "../tests/System_Mode_test.hpp"
 #endif
 
-// (Task 3 tests re-added when Semaphore is implemented.)
+#if LEVEL_3_IMPLEMENTED == 1
+#include "../tests/ConsumerProducer_C_API_test.hpp"
+#include "../tests/ConsumerProducer_CPP_Sync_API_test.hpp"
+#endif
+
 // (Task 4 tests never — we're skipping that task and using console.lib.)
 
 extern "C" void userMain() {
@@ -64,6 +68,18 @@ extern "C" void userMain() {
             printString("TEST 2 (zadatak 2., niti CPP API i sinhrona promena konteksta)\n");
 #endif
             break;
+        case 3:
+#if LEVEL_3_IMPLEMENTED == 1
+            producerConsumer_C_API();
+            printString("TEST 3 (zadatak 3., kompletan C API sa semaforima, sinhrona promena konteksta)\n");
+#endif
+            break;
+        case 4:
+#if LEVEL_3_IMPLEMENTED == 1
+            producerConsumer_CPP_Sync_API();
+            printString("TEST 4 (zadatak 3., kompletan CPP API sa semaforima, sinhrona promena konteksta)\n");
+#endif
+            break;
         case 7:
 #if LEVEL_2_IMPLEMENTED == 1
             System_Mode_test();
@@ -72,6 +88,6 @@ extern "C" void userMain() {
 #endif
             break;
         default:
-            printString("Niste uneli odgovarajuci broj za test (podržani: 1, 2, 7)\n");
+            printString("Niste uneli odgovarajuci broj za test (podržani: 1, 2, 3, 4, 7)\n");
     }
 }

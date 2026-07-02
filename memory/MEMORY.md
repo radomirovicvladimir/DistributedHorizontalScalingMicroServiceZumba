@@ -13,4 +13,5 @@
 - [Feedback: 16-byte alignment via header](feedback-16b-align.md) — Node sizeof==16 keeps payload SP-aligned
 - [Feedback: Kernel must never use `new`](feedback-kernel-no-new.md) — kernel `new` would re-enter ecall path
 - [Project: Task 2 plan — cooperative threads](project-task2-plan.md) — non-preemptive kernel, per-thread kernel stack, yield()
+- [Project: Task 3 plan — semaphores](project-task3-plan.md) — KSemaphore, FIFO blocked queue, wait_n/signal_n, 3 layers wired
 - [Reference: OS12026 public tests](reference-os12026-tests.md) — the canonical test suite integrated into our tests/

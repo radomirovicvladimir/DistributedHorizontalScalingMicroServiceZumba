@@ -121,6 +121,9 @@ int TCB::create(TCB** handle_out,
     t->state        = READY;
     t->is_kernel    = false;                         // user thread
     t->stack_bottom = (void*)((uchar*)stack_top - DEFAULT_STACK_SIZE);
+    t->trap_frame   = nullptr;
+    t->wait_n       = 0;
+    t->sem_result   = 0;
 
     // Build a synthetic trap-return frame at the top of the thread's stack.
     // First switch into this TCB will run through trap_return_tail, which
@@ -177,6 +180,9 @@ void TCB::init() {
     mainTCB->state        = RUNNING;
     mainTCB->is_kernel    = true;
     mainTCB->stack_bottom = nullptr;
+    mainTCB->trap_frame   = nullptr;
+    mainTCB->wait_n       = 0;
+    mainTCB->sem_result   = 0;
 
     running = mainTCB;
 
@@ -197,6 +203,9 @@ void TCB::init() {
     idleTCB->state        = READY;
     idleTCB->is_kernel    = true;
     idleTCB->stack_bottom = idle_stack;
+    idleTCB->trap_frame   = nullptr;
+    idleTCB->wait_n       = 0;
+    idleTCB->sem_result   = 0;
     idleTCB->context[CTX_RA] = (uint64)&TCB::body_wrapper;
     idleTCB->context[CTX_SP] = (uint64)idle_stack_top;
 

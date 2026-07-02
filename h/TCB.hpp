@@ -16,7 +16,7 @@
 
 class TCB {
 public:
-    enum State { READY, RUNNING, FINISHED };
+    enum State { READY, RUNNING, BLOCKED, FINISHED };
 
     // Layout: yield() indexes into context[] with these constants.
     // Keep in sync with context_switch.S (CTX_RA=0, CTX_SP=1, CTX_S0..S11=2..13).
@@ -30,9 +30,25 @@ public:
     void*   stack_bottom;          // MemoryAllocator::free() takes this
     void  (*body)(void*);
     void*   arg;
-    TCB*    next;                  // ready-queue link
+    TCB*    next;                  // link — used for ready queue OR sem blocked queue (mutually exclusive)
     State   state;
     bool    is_kernel;             // reserved — unused in Task 2 (kept for Task 4)
+
+    // --- Task 3 (Semaphores) ---------------------------------------------
+    // trap_frame: on trap entry, c_trap_handler stashes its incoming
+    // frame pointer here. If the thread then blocks on a semaphore, the
+    // waker (KSemaphore::signal / close) writes the return value into
+    // trap_frame->a0 so it becomes this thread's syscall return.
+    // Type is void* here to avoid pulling the TrapFrame struct into every
+    // TU that includes TCB.hpp — trap.cpp casts it back.
+    void*    trap_frame;
+    // waitN: how many units the blocked thread asked for in sem_wait_n.
+    // Used by KSemaphore::close to restore the count when releasing waiters.
+    unsigned wait_n;
+    // semResult: value written by signal/close for the woken thread's C API
+    // to return. Currently redundant with trap_frame->a0 (which we set
+    // directly), kept for debugging / future async paths.
+    int      sem_result;
 
     // --- lifecycle -------------------------------------------------------
 

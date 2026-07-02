@@ -51,7 +51,8 @@ bool Scheduler::empty() { return head == nullptr; }
 // Central switch point. Called synchronously from:
 //   - thread_dispatch: put running back, run next
 //   - thread_exit:     leave running as FINISHED, run next (and enqueue on graveyard)
-//   - (later Task 3)   sem_wait: enqueue running on a semaphore, run next
+//   - sem_wait:        caller has already set state=BLOCKED and put self on
+//                      the sem's blocked queue; we just switch away.
 //
 // The caller must have adjusted `TCB::running->state` appropriately BEFORE
 // entering. This routine only decides who runs next and swaps context.
@@ -64,22 +65,28 @@ void Scheduler::switch_to_next() {
     TCB* nxt = get();
     if (!nxt) nxt = g_idle;
 
-    // If the current thread is still runnable AND we're not on idle itself,
-    // put it back on the queue. Idle re-enters via the empty() fallback, so
-    // we don't queue it either. FINISHED threads go to the graveyard so
-    // the NEXT thread reaps them on entry to switch_to_next.
+    // Decide what to do with `old`:
+    //   FINISHED → graveyard (reaped by next thread's return from ctx switch).
+    //   BLOCKED  → leave alone; already on some sem's blocked queue.
+    //   RUNNING  → still runnable, re-queue (unless it's idle — idle isn't
+    //              in the queue; it re-enters via the empty()-fallback).
     if (old->state == TCB::FINISHED) {
         old->next = graveyard;
         graveyard = old;
+    } else if (old->state == TCB::BLOCKED) {
+        // no-op — caller owns the linkage
     } else if (old != g_idle && old->state == TCB::RUNNING) {
         old->state = TCB::READY;
         put(old);
     }
 
     // Fast path: only if we'd be switching to ourselves AND we're still
-    // runnable, stay put. (A FINISHED thread must switch away even if the
-    // only alternative is idle — otherwise we return into dead code.)
-    if (nxt == old && old->state != TCB::FINISHED) {
+    // runnable, stay put. (A FINISHED or BLOCKED thread must switch away
+    // even if the only alternative is idle — otherwise we return into
+    // code we shouldn't.)
+    if (nxt == old &&
+        old->state != TCB::FINISHED &&
+        old->state != TCB::BLOCKED) {
         old->state = TCB::RUNNING;
         return;
     }

@@ -21,3 +21,7 @@ void  operator delete[](void* p) noexcept          { mem_free(p); }
 // C++14 sized-delete forms. Required when classes have non-trivial dtors.
 void  operator delete(void* p, size_t) noexcept    { mem_free(p); }
 void  operator delete[](void* p, size_t) noexcept  { mem_free(p); }
+
+// Placement-new/delete declarations live inline in h/Semaphore.hpp (and any
+// other header that needs them). No global definitions here — they'd be
+// redundant with the inline forms.

@@ -46,7 +46,7 @@ struct InitialFrame {
 // pointer to install as the fresh thread's context[CTX_SP]. body_wrapper will
 // run with sp at (stack_top - sizeof(InitialFrame)), which is 16-aligned as
 // long as stack_top is 16-aligned (144 bytes IS a multiple of 16 → yes).
-static void* seed_initial_frame(void* stack_top, bool user_mode) {
+void* TCB::seed_initial_frame(void* stack_top, bool user_mode) {
     uchar* p = (uchar*)stack_top - sizeof(InitialFrame);
     InitialFrame* f = (InitialFrame*)p;
 
@@ -125,7 +125,7 @@ int TCB::create(TCB** handle_out,
     // Build a synthetic trap-return frame at the top of the thread's stack.
     // First switch into this TCB will run through trap_return_tail, which
     // pops the frame and `sret`s into U-mode at body_wrapper.
-    void* frame_sp = seed_initial_frame(stack_top, /*user_mode=*/true);
+    void* frame_sp = TCB::seed_initial_frame(stack_top, /*user_mode=*/true);
 
     t->context[CTX_RA] = (uint64)&trap_return_tail;
     t->context[CTX_SP] = (uint64)frame_sp;

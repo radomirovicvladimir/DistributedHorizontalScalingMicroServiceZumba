@@ -63,6 +63,11 @@ private:
     // because ra was seeded by TCB::create, not saved by a real caller.
     static void body_wrapper();
 
+    // Lays down a synthetic 144-byte trap-return frame at the top of a new
+    // thread's stack for the U-mode first-entry path (see TCB.cpp).
+    // Returns the pointer to install as context[CTX_SP].
+    static void* seed_initial_frame(void* stack_top, bool user_mode);
+
     // Bookkeeping.
     static TCB* mainTCB;        // no stack of its own (uses whatever main() had)
     static TCB* idleTCB;

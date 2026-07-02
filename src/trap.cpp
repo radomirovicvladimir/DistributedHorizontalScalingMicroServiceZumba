@@ -18,7 +18,32 @@ extern "C" void c_trap_handler(TrapFrame* f) {
     // sepc/sstatus come from the frame, NOT the live CSRs — see trap_entry.S.
     uint64 cause = READ_CSR(scause);
 
-    // --- exceptions from user code ---------------------------------------
+    // --- async interrupts (MSB=1) ----------------------------------------
+    // We enable SEIE (external) so console.lib's __getc unblocks; SSIE
+    // (timer soft-int) stays masked. If either fires, we handle it here
+    // WITHOUT advancing sepc — the interrupted thread resumes at the exact
+    // instruction it was on.
+    if (cause & SCAUSE_INT_BIT) {
+        uint64 code = cause & ~SCAUSE_INT_BIT;
+        if (code == 9) {
+            // External IRQ — delegate to console.lib. It plic_claim()s,
+            // dispatches to uartintr() if IRQ==10, and plic_complete()s.
+            // Safe to call with interrupts masked (hardware cleared SIE on
+            // trap entry) — in fact console_handler panics if SIE is set.
+            console_handler();
+        } else if (code == 1) {
+            // Timer soft-int. We disabled SSIE, but be defensive: ack the
+            // pending bit so it doesn't re-fire and swallow silently. We
+            // don't do time-sharing.
+            uint64 sip = READ_CSR(sip);
+            WRITE_CSR(sip, sip & ~SIE_SSIE);
+        }
+        // else: unknown async IRQ — ignore; hardware will re-raise if it
+        // actually matters. Do NOT advance sepc for async traps.
+        return;
+    }
+
+    // --- synchronous exceptions from user code (MSB=0, not ecall) --------
     // If a thread does something illegal (executes a privileged instruction,
     // dereferences a bad pointer, etc.) we don't want to kill the whole
     // kernel — the offending thread deserves the blame. Kill it and yield.
@@ -41,8 +66,6 @@ extern "C" void c_trap_handler(TrapFrame* f) {
         //   1 = instruction access fault, 2 = illegal instr,
         //   5 = load access fault, 7 = store access fault,
         //   12/13/15 = page faults (n/a — no MMU used).
-        // async interrupts (MSB=1) shouldn't reach us in this non-preemptive
-        // build — we never enable them.
         kputs("\nthread trap: scause="); kputhex(cause);
         kputs(" sepc="); kputhex(f->sepc);
         kputs(" — killing offending thread\n");

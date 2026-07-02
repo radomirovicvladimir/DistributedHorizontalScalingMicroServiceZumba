@@ -35,6 +35,22 @@ extern "C" void main() {
     // Task 1: bring up the heap.
     MemoryAllocator::init();
 
+    // Interrupt policy for our non-preemptive, Task-4-skipping kernel:
+    //   * TIMER (SSIE, soft-int bit 1): DISABLE. hw.lib's system_main leaves
+    //     the S-mode timer running; if we let it fire, our trap handler sees
+    //     scause=0x8000...01 while a user thread is blocked in __getc and
+    //     kills it. We don't need timing for our design.
+    //   * EXTERNAL (SEIE, bit 9): ENABLE. console.lib's __getc relies on
+    //     UART interrupts to unblock — without SEIE, __getc hangs forever.
+    //     The trap handler dispatches external IRQs to console_handler().
+    //   * SIE in sstatus: ENABLE, so IRQs are delivered while in user code.
+    //     Hardware clears sstatus.SIE on trap entry, so kernel code inside
+    //     the trap handler stays masked as expected.
+    uint64 sie = READ_CSR(sie);
+    WRITE_CSR(sie, (sie & ~SIE_SSIE) | SIE_SEIE);
+    uint64 sst = READ_CSR(sstatus);
+    WRITE_CSR(sstatus, sst | SSTATUS_SIE);
+
     // Install our trap handler in stvec (direct mode — MODE bits = 0).
     WRITE_CSR(stvec, (uint64)&trap_entry);
 

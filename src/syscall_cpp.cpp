@@ -69,3 +69,5 @@ void PeriodicThread::terminate() { thread_exit(); }
 
 char Console::getc()       { return ::getc(); }
 void Console::putc(char c) {        ::putc(c); }
+
+extern "C" int time_sleep(time_t) { return -1; }

@@ -8,7 +8,7 @@
 // finished to 1, keep the rest at 0. `uputstvo.txt` documents this exact
 // pattern; deviating breaks compatibility with the test harness.
 
-#include "../tests/printing.hpp"
+#include "printing.hpp"
 
 #define LEVEL_1_IMPLEMENTED 1
 #define LEVEL_2_IMPLEMENTED 1
@@ -16,19 +16,19 @@
 #define LEVEL_4_IMPLEMENTED 0
 
 #if LEVEL_2_IMPLEMENTED == 1
-#include "../tests/Threads_C_API_test.hpp"
-#include "../tests/Threads_CPP_API_test.hpp"
-#include "../tests/System_Mode_test.hpp"
+#include "Threads_C_API_test.hpp"
+#include "Threads_CPP_API_test.hpp"
+#include "System_Mode_test.hpp"
 #endif
 
 #if LEVEL_3_IMPLEMENTED == 1
-#include "../tests/ConsumerProducer_C_API_test.hpp"
-#include "../tests/ConsumerProducer_CPP_Sync_API_test.hpp"
+#include "ConsumerProducer_C_API_test.hpp"
+#include "ConsumerProducer_CPP_Sync_API_test.hpp"
 #endif
 
 // (Task 4 tests never — we're skipping that task and using console.lib.)
 
-extern "C" void userMain() {
+void userMain() {
     printString("Unesite broj testa? [1-7]\n");
     char digit = getc();
     putc(digit);                                // echo so the user sees what they typed

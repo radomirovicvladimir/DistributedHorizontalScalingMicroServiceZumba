@@ -7,7 +7,7 @@
 #include "../h/Scheduler.hpp"
 
 extern "C" void trap_entry();       // src/trap_entry.S
-extern "C" void userMain();         // src/userMain.cpp — the test harness
+void userMain();         // src/userMain.cpp — the test harness
 
 // Kernel entry per PDF §"Odnos jezgra i korisničke aplikacije":
 //   1. hw.lib boots CPU + PLIC + UART, calls main().

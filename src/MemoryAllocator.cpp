@@ -17,16 +17,16 @@ void MemoryAllocator::init() {
 
 void* MemoryAllocator::alloc_blocks(size_t payload) {
     if (payload == 0) return nullptr;
-    size_t need = payload + 1;                    // +1 for our header block
-    if (need < payload) return nullptr;           // overflow
+    size_t need = payload + 1;
+    if (need < payload) return nullptr;
 
     for (Node **pp = &head, *p = head; p; pp = &p->next, p = p->next) {
         if (p->blocks < need) continue;
-        if (p->blocks <= need + 1) {               // take whole chunk
+        if (p->blocks <= need + 1) {
             *pp = p->next;
             return p + 1;
         }
-        p->blocks -= need;                         // split off tail
+        p->blocks -= need;
         Node* tail = (Node*)((uchar*)p + p->blocks * MEM_BLOCK_SIZE);
         tail->blocks = need;
         return tail + 1;
@@ -48,15 +48,15 @@ int MemoryAllocator::free(void* ptr) {
 
     Node *prev = nullptr, *cur = head;
     while (cur && cur < h) { prev = cur; cur = cur->next; }
-    // Double-free: h is already in (or inside) a free node.
+
     if (cur == h || (prev && (uchar*)h < end_of(prev))) return -1;
 
     h->next = cur;
-    if (cur && end_of(h) == (uchar*)cur) {        // coalesce successor
+    if (cur && end_of(h) == (uchar*)cur) {
         h->blocks += cur->blocks;
         h->next    = cur->next;
     }
-    if (prev && end_of(prev) == (uchar*)h) {       // coalesce predecessor
+    if (prev && end_of(prev) == (uchar*)h) {
         prev->blocks += h->blocks;
         prev->next    = h->next;
     } else if (prev) {

@@ -8,69 +8,39 @@
 #include "../h/Semaphore.hpp"
 #include "../lib/console.h"
 
-// MUST mirror src/trap_entry.S exactly. See that file for offset table.
 struct TrapFrame {
     uint64 ra, t0, t1, t2, t3, t4, t5, t6;
     uint64 a0, a1, a2, a3, a4, a5, a6, a7;
-    uint64 sepc, sstatus;                    // per-thread CSR snapshot
+    uint64 sepc, sstatus;
 };
 
 extern "C" void c_trap_handler(TrapFrame* f) {
-    // Read cause from CSR (transient — same for every trap on this HART).
-    // sepc/sstatus come from the frame, NOT the live CSRs — see trap_entry.S.
+
     uint64 cause = READ_CSR(scause);
 
-    // Stash the frame pointer on the running TCB so KSemaphore::signal/close
-    // can later write the woken thread's syscall return into frame->a0.
     if (TCB::running) TCB::running->trap_frame = f;
 
-    // --- async interrupts (MSB=1) ----------------------------------------
-    // We enable SEIE (external) so console.lib's __getc unblocks; SSIE
-    // (timer soft-int) stays masked. If either fires, we handle it here
-    // WITHOUT advancing sepc — the interrupted thread resumes at the exact
-    // instruction it was on.
     if (cause & SCAUSE_INT_BIT) {
         uint64 code = cause & ~SCAUSE_INT_BIT;
         if (code == 9) {
-            // External IRQ — delegate to console.lib. It plic_claim()s,
-            // dispatches to uartintr() if IRQ==10, and plic_complete()s.
-            // Safe to call with interrupts masked (hardware cleared SIE on
-            // trap entry) — in fact console_handler panics if SIE is set.
+
             console_handler();
         } else if (code == 1) {
-            // Timer soft-int. We disabled SSIE, but be defensive: ack the
-            // pending bit so it doesn't re-fire and swallow silently. We
-            // don't do time-sharing.
+
             uint64 sip = READ_CSR(sip);
             WRITE_CSR(sip, sip & ~SIE_SSIE);
         }
-        // else: unknown async IRQ — ignore; hardware will re-raise if it
-        // actually matters. Do NOT advance sepc for async traps.
+
         return;
     }
 
-    // --- synchronous exceptions from user code (MSB=0, not ecall) --------
-    // If a thread does something illegal (executes a privileged instruction,
-    // dereferences a bad pointer, etc.) we don't want to kill the whole
-    // kernel — the offending thread deserves the blame. Kill it and yield.
-    //
-    // Primary use case: System_Mode_test (Test 7 in the OS12026 test suite)
-    // runs `csrr t6, sepc` from a user thread. Since user threads execute in
-    // U-mode (TCB::create seeds sstatus.SPP=0), hardware raises scause=2
-    // (illegal instruction) — we land here, kill workerBodyB, and its
-    // `finishedB` flag never gets set. The busy-wait loop in the test never
-    // exits → the completion string never prints → grader sees the test
-    // "did not complete regularly", exactly as tests/uputstvo.txt requires.
     if (cause != SCAUSE_ECALL_U && cause != SCAUSE_ECALL_S) {
-        // scause values (synchronous exceptions, MSB=0):
-        //   1 = instruction access fault, 2 = illegal instr,
-        //   5 = load access fault, 7 = store access fault,
-        //   12/13/15 = page faults (n/a — no MMU used).
+
         kputs("\nthread trap: scause="); kputhex(cause);
         kputs(" sepc="); kputhex(f->sepc);
         kputs(" — killing offending thread\n");
         TCB::exit();
-        return;                                   // unreachable
+        return;
     }
 
     switch (f->a0) {
@@ -81,9 +51,8 @@ extern "C" void c_trap_handler(TrapFrame* f) {
             f->a0 = (uint64)MemoryAllocator::free((void*)f->a1);
             break;
 
-        // --- Task 2 ------------------------------------------------------
         case SYS_THREAD_CREATE: {
-            // ABI: a1=handle*, a2=body, a3=arg, a4=stack_top.
+
             TCB** handle = (TCB**)f->a1;
             void  (*body)(void*) = (void(*)(void*))f->a2;
             void*  arg        = (void*)f->a3;
@@ -92,48 +61,36 @@ extern "C" void c_trap_handler(TrapFrame* f) {
             break;
         }
         case SYS_THREAD_EXIT: {
-            // Advance THIS thread's saved sepc BEFORE we yield away, so when
-            // (much later) something restores us for cleanup — actually never,
-            // since state is FINISHED — no confusion arises. More importantly,
-            // when we context-switch inside TCB::exit, the callee-saved regs
-            // and stack of *this* trap frame stay on our (soon-abandoned) stack.
-            // We just never come back to it, which is fine.
+
             f->sepc += 4;
             TCB::exit();
-            // Unreachable.
+
             f->a0 = 0;
             return;
         }
-        // --- Task 4 fallback via console.lib -----------------------------
-        // We're skipping Task 4 proper (async / time_sleep / PeriodicThread),
-        // but the PDF requires all three interface layers for putc/getc, and
-        // console.lib provides the kernel body.
+
         case SYS_PUTC:
             __putc((char)f->a1);
             f->a0 = 0;
             break;
         case SYS_GETC:
-            // Sign-extend so EOF (-1 as char) becomes -1 as int on the caller.
+
             f->a0 = (uint64)(long)(signed char)__getc();
             break;
 
         case SYS_THREAD_DISPATCH:
-            // Advance sepc first (before the switch) so that when we context-
-            // switch back into this thread and eventually sret, we resume
-            // past the ecall — not on top of it.
+
             f->sepc += 4;
             TCB::dispatch();
-            // NOTE: fall through to the common "sepc += 4" at the bottom
-            // would double-advance. Return early instead.
+
             return;
 
-        // --- Task 3 (Semaphores) -----------------------------------------
         case SYS_SEM_OPEN: {
-            // ABI: a1 = sem_t* out, a2 = unsigned init
+
             KSemaphore** handle = (KSemaphore**)f->a1;
             unsigned init = (unsigned)f->a2;
             if (!handle) { f->a0 = (uint64)-1; break; }
-            // Kernel-side allocation — no ecall (see feedback-kernel-no-new.md).
+
             size_t blocks = (sizeof(KSemaphore) + MEM_BLOCK_SIZE - 1) / MEM_BLOCK_SIZE;
             void* raw = MemoryAllocator::alloc_blocks(blocks);
             if (!raw) { f->a0 = (uint64)-1; break; }
@@ -158,15 +115,12 @@ extern "C" void c_trap_handler(TrapFrame* f) {
             if (!s) { f->a0 = (uint64)-1; break; }
             int r = s->wait(n);
             if (r == 1) {
-                // Blocked. Advance sepc first so we resume PAST the ecall
-                // when signal wakes us. Then yield. When we come back
-                // (signal writes 0 to frame->a0, or close writes -1), the
-                // trap epilogue restores frame values → sret with a0 set.
+
                 f->sepc += 4;
                 Scheduler::switch_to_next();
-                return;                          // sepc already advanced
+                return;
             }
-            // Immediate result: 0 = acquired, -1 = closed/bad.
+
             f->a0 = (uint64)(long)r;
             break;
         }
@@ -184,7 +138,5 @@ extern "C" void c_trap_handler(TrapFrame* f) {
             f->a0 = (uint64)-1;
     }
 
-    // Advance past the ecall instruction. Note this modifies the FRAME copy,
-    // not the CSR — the S-file restores from the frame right before sret.
     f->sepc += 4;
 }

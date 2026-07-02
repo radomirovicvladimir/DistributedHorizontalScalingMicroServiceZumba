@@ -1,8 +1,6 @@
 #pragma once
 #include "../lib/hw.h"
 
-// Polling-UART debug helpers. Safe before traps/threads exist.
-
 extern "C" {
     void kputc(char c);
     void kputs(const char* s);

@@ -1,9 +1,6 @@
 #include "../h/debug.hpp"
 #include "../lib/hw.h"
 
-// PDF §Konzola, p.17: CONSOLE_STATUS bit 5 = "TX ready". Spin then write.
-// CONSOLE_*_DATA are extern const uint64 holding the MMIO addresses.
-
 extern "C" void kputc(char c) {
     while (!(*(volatile uint8*)CONSOLE_STATUS & CONSOLE_TX_STATUS_BIT)) {}
     *(volatile uint8*)CONSOLE_TX_DATA = (uint8)c;

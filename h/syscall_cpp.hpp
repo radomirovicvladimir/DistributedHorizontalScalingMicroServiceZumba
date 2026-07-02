@@ -21,12 +21,6 @@ private:
     void (*body)(void*);
     void* arg;
 
-    // --- non-interface-affecting internals (do NOT touch layout / vtable) ---
-    // Trampoline used when the protected default ctor is invoked so that a
-    // derived class's virtual run() gets called. body/arg fields above are
-    // seeded with `(&run_trampoline, this)`. This is a private static (not a
-    // member function) so it doesn't participate in the vtable — PDF layout
-    // constraints stay intact.
     static void run_trampoline(void* self_v);
 };
 

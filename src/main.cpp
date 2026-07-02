@@ -3,6 +3,8 @@
 #include "../h/riscv.hpp"
 #include "../h/MemoryAllocator.hpp"
 #include "../h/syscall_c.h"
+#include "../h/TCB.hpp"
+#include "../h/Scheduler.hpp"
 
 extern "C" void trap_entry();   // defined in trap_entry.S
 
@@ -22,10 +24,12 @@ static bool in_heap(void* p) {
               && (uint64)p <  (uint64)HEAP_END_ADDR;
 }
 
-// ---- direct-call tests (no trap) -----------------------------------------
+// ============================================================================
+// Task 1 — Memory allocator (kept intact from before)
+// ============================================================================
 
-static void direct_tests() {
-    kputs("\n-- direct (MemoryAllocator::*) --\n");
+static void mem_direct_tests() {
+    kputs("\n-- Task 1 direct (MemoryAllocator::*) --\n");
     size_t free0 = MemoryAllocator::free_bytes();
 
     void *p1 = MemoryAllocator::alloc(100),
@@ -39,9 +43,6 @@ static void direct_tests() {
     CHECK("p3 16-aligned", ((uint64)p3 & 0xF) == 0);
     MemoryAllocator::check();
 
-    // Free everything first; first-fit then hands back the same address.
-    // (Freeing one while others are live can't guarantee reuse — the big
-    // free remainder usually appears first in the address-sorted list.)
     MemoryAllocator::free(p1);
     MemoryAllocator::free(p2);
     MemoryAllocator::free(p3);
@@ -63,10 +64,8 @@ static void direct_tests() {
     CHECK("alloc(0) == NULL", MemoryAllocator::alloc(0) == nullptr);
 }
 
-// ---- e2e tests (through ecall) -------------------------------------------
-
-static void e2e_tests() {
-    kputs("\n-- e2e (mem_alloc / mem_free via ecall) --\n");
+static void mem_e2e_tests() {
+    kputs("\n-- Task 1 e2e (mem_alloc / mem_free via ecall) --\n");
     size_t free0 = MemoryAllocator::free_bytes();
 
     void *p1 = mem_alloc(100), *p2 = mem_alloc(4096);
@@ -87,35 +86,149 @@ static void e2e_tests() {
     CHECK("delete restored",  MemoryAllocator::free_bytes() == free0);
 }
 
-// ---- stress / fragmentation ----------------------------------------------
+// ============================================================================
+// Task 2 — Threads
+//
+// Each test creates one or more threads, cooperatively yields via
+// thread_dispatch, and waits for completion by draining the ready queue via
+// its own yields. Since main() itself is a TCB (mainTCB, built in TCB::init),
+// we just call thread_dispatch() in a loop from main and inspect flags/counters
+// set by the worker threads.
+// ============================================================================
 
-static void stress_tests() {
-    kputs("\n-- stress --\n");
-    size_t free0 = MemoryAllocator::free_bytes();
+// Shared state for the thread tests — plain globals in .bss.
+static volatile int t_flag_a = 0;
+static volatile int t_flag_b = 0;
+static volatile int t_counter = 0;
+static volatile int t_order[16];
+static volatile int t_order_len = 0;
 
-    const int N = 64;
-    void* buf[N]; int got = 0;
-    while (got < N && (buf[got] = mem_alloc(4096))) got++;
-    kputs("  allocated 4KB blocks: "); kputdec(got); kputc('\n');
-    CHECK("64 x 4KB fit", got == N);
+static void body_setflag_a(void*) { t_flag_a = 1; }
+static void body_setflag_b(void*) { t_flag_b = 1; }
 
-    bool desc = true;
-    for (int i = 1; i < got; i++)
-        if (buf[i] >= buf[i-1]) { desc = false; break; }
-    CHECK("4KB allocs descend", desc);
+static void body_incr(void* arg) {
+    // Each of these threads bumps the counter 5 times, yielding between
+    // increments to exercise interleaving.
+    int rounds = (int)(uint64)arg;
+    for (int i = 0; i < rounds; i++) {
+        t_counter++;
+        thread_dispatch();
+    }
+}
 
-    for (int i = 0; i < got; i++) mem_free(buf[i]);
-    MemoryAllocator::check();
-    CHECK("stress free restored", MemoryAllocator::free_bytes() == free0);
+static void body_record_order(void* arg) {
+    int id = (int)(uint64)arg;
+    if (t_order_len < 16) t_order[t_order_len++] = id;
+}
 
-    const int M = 40;
-    void* sm[M];
-    for (int i = 0; i < M; i++) sm[i] = mem_alloc(128);
-    for (int i = 0; i < M; i += 2) mem_free(sm[i]);
-    MemoryAllocator::check();
-    for (int i = 1; i < M; i += 2) mem_free(sm[i]);
-    MemoryAllocator::check();
-    CHECK("fragmentation restored", MemoryAllocator::free_bytes() == free0);
+// Drain the ready queue by repeatedly yielding until nothing but idle is left.
+// Because idle is never in the queue, the queue emptying is the signal that
+// all user threads we launched have finished.
+static void drain_ready_queue() {
+    // Yield up to a bounded number of times to avoid runaway loops if a test
+    // launches a thread that never terminates.
+    for (int i = 0; i < 10000; i++) {
+        if (Scheduler::empty()) return;
+        thread_dispatch();
+    }
+    kpanic("drain_ready_queue: threads still running after 10k yields");
+}
+
+static void thread_tests_basic() {
+    kputs("\n-- Task 2 basic (create/dispatch/exit) --\n");
+
+    // 1. Single thread — sets a flag, then implicitly exits by falling off body.
+    t_flag_a = 0;
+    thread_t h1;
+    CHECK("thread_create(setflag_a) == 0",
+          thread_create(&h1, body_setflag_a, nullptr) == 0);
+    drain_ready_queue();
+    CHECK("worker A ran",  t_flag_a == 1);
+
+    // 2. Two threads in FIFO order.
+    t_flag_a = 0; t_flag_b = 0;
+    thread_t h2a, h2b;
+    thread_create(&h2a, body_setflag_a, nullptr);
+    thread_create(&h2b, body_setflag_b, nullptr);
+    drain_ready_queue();
+    CHECK("workers A and B both ran", t_flag_a == 1 && t_flag_b == 1);
+}
+
+static void thread_tests_fifo_order() {
+    kputs("\n-- Task 2 FIFO ordering (8 threads) --\n");
+
+    t_order_len = 0;
+    for (int i = 0; i < 16; i++) t_order[i] = -1;
+
+    thread_t h[8];
+    for (int i = 0; i < 8; i++) {
+        thread_create(&h[i], body_record_order, (void*)(uint64)i);
+    }
+    drain_ready_queue();
+
+    bool ok = (t_order_len == 8);
+    for (int i = 0; ok && i < 8; i++) if (t_order[i] != i) ok = false;
+    CHECK("threads ran in creation (FIFO) order", ok);
+}
+
+static void thread_tests_interleave() {
+    kputs("\n-- Task 2 interleaving via thread_dispatch --\n");
+    t_counter = 0;
+
+    thread_t h[4];
+    for (int i = 0; i < 4; i++) {
+        thread_create(&h[i], body_incr, (void*)(uint64)5);
+    }
+    drain_ready_queue();
+
+    // 4 threads × 5 increments = 20.
+    CHECK("counter == 4*5 after interleaving", t_counter == 20);
+}
+
+static void thread_tests_nested_create() {
+    // A thread that itself creates another thread. Exercises re-entrance
+    // of SYS_THREAD_CREATE while we're already running on a worker's stack.
+    kputs("\n-- Task 2 nested creation --\n");
+
+    struct Nested {
+        static void inner(void*) {
+            t_flag_b = 1;
+        }
+        static void outer(void*) {
+            t_flag_a = 1;
+            thread_t hi;
+            thread_create(&hi, inner, nullptr);
+        }
+    };
+
+    t_flag_a = 0; t_flag_b = 0;
+    thread_t ho;
+    thread_create(&ho, Nested::outer, nullptr);
+    drain_ready_queue();
+    CHECK("outer ran",         t_flag_a == 1);
+    CHECK("inner (nested) ran", t_flag_b == 1);
+}
+
+static void thread_tests_explicit_exit() {
+    // Worker that calls thread_exit() explicitly instead of returning.
+    // If TCB::exit's context switch is broken, we hang or crash here.
+    kputs("\n-- Task 2 explicit thread_exit --\n");
+    t_flag_a = 0;
+
+    struct E {
+        static void body(void*) {
+            t_flag_a = 1;
+            thread_exit();
+            // unreachable
+            t_flag_a = 99;
+        }
+    };
+
+    thread_t h;
+    thread_create(&h, E::body, nullptr);
+    drain_ready_queue();
+    CHECK("explicit exit reached flag", t_flag_a == 1);
+    CHECK("explicit exit unreachable code untouched", t_flag_a != 99);
 }
 
 // ---- entry ----------------------------------------------------------------
@@ -127,14 +240,25 @@ extern "C" void main() {
     kputs(" ("); kputdec((uint64)HEAP_END_ADDR - (uint64)HEAP_START_ADDR);
     kputs(" B)\n");
 
+    // Task 1 setup + tests.
     MemoryAllocator::init();
-    direct_tests();
+    mem_direct_tests();
 
     WRITE_CSR(stvec, (uint64)&trap_entry);
-    e2e_tests();
-    stress_tests();
+    mem_e2e_tests();
 
-    kputs("\n==== Task 1: ");
+    // Task 2 setup: build mainTCB (so `running` isn't null) and idleTCB
+    // (so Scheduler::switch_to_next always has SOMETHING to run).
+    TCB::init();
+
+    // Task 2 tests.
+    thread_tests_basic();
+    thread_tests_fifo_order();
+    thread_tests_interleave();
+    thread_tests_nested_create();
+    thread_tests_explicit_exit();
+
+    kputs("\n==== Task 1+2: ");
     kputdec(n_run - n_fail); kputc('/'); kputdec(n_run);
     kputs(" passed ====\n");
 

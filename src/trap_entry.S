@@ -1,8 +1,14 @@
 # Trap entry. One handler in stvec services ecall/exception/external IRQ.
-# For Task 1 we only need ecall, and the kernel is non-preemptive, so we
-# save only the caller-saved set (ra, t0-t6, a0-a7) — the C handler will
-# preserve s0-s11 by ABI as usual. When async preemption arrives in Task 4
-# we'll widen this save area to cover all 31 GPRs.
+# Task 2 introduces context switches from within the C dispatcher — so we
+# must save enough state on the CURRENT thread's stack to fully resume it
+# even if a different thread services intermediate traps in the meantime.
+# Specifically: sepc + sstatus need to be per-thread (they're CSRs, so a
+# naive read/write in trap.cpp would clobber another thread's saved PC).
+#
+# Frame layout — MUST match struct TrapFrame in src/trap.cpp exactly:
+#     0..15   : 16 caller-saved GPRs (ra, t0-t6, a0-a7)  — 128 bytes
+#     16..17  : sepc, sstatus                            — 16 bytes
+# Total: 144 bytes.
 #
 # stvec must be 4-byte aligned in direct mode (MODE bits = 0).
 
@@ -10,7 +16,7 @@
 .globl trap_entry
 .align 4
 trap_entry:
-    addi sp, sp, -128
+    addi sp, sp, -144
 
     sd ra,    0(sp)
     sd t0,    8(sp)
@@ -29,8 +35,24 @@ trap_entry:
     sd a6,  112(sp)
     sd a7,  120(sp)
 
+    # Snapshot sepc and sstatus into the frame. If the C dispatcher context-
+    # switches away and back, the CSRs will have been transiently owned by
+    # another thread — but our frame keeps the original values so `sret`
+    # returns to *our* PC with *our* privilege bits.
+    csrr t0, sepc
+    sd   t0, 128(sp)
+    csrr t0, sstatus
+    sd   t0, 136(sp)
+
     mv a0, sp                 # pass &TrapFrame to the C dispatcher
     call c_trap_handler
+
+    # Restore possibly-modified CSRs from the frame. (c_trap_handler writes
+    # f->sepc += 4 for ecall; other trap kinds may leave it untouched.)
+    ld   t0, 128(sp)
+    csrw sepc, t0
+    ld   t0, 136(sp)
+    csrw sstatus, t0
 
     ld ra,    0(sp)
     ld t0,    8(sp)
@@ -49,5 +71,5 @@ trap_entry:
     ld a6,  112(sp)
     ld a7,  120(sp)
 
-    addi sp, sp, 128
+    addi sp, sp, 144
     sret

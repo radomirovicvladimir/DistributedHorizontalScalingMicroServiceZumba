@@ -10,6 +10,12 @@ TCB* TCB::idleTCB = nullptr;
 
 TCB* g_idle = nullptr;
 
+size_t TCB::next_id            = 0;
+int    TCB::max_user_threads   = 5;
+int    TCB::active_user_threads = 0;
+TCB*   TCB::pending_head       = nullptr;
+TCB*   TCB::pending_tail       = nullptr;
+
 extern "C" void trap_return_tail();
 
 struct InitialFrame {
@@ -32,8 +38,7 @@ void* TCB::seed_initial_frame(void* stack_top, bool user_mode) {
     return p;
 }
 
-void TCB::idle_body(void*  ) {
-
+void TCB::idle_body(void*) {
     for (;;) {
         asm volatile("wfi");
     }
@@ -69,19 +74,50 @@ int TCB::create(TCB** handle_out,
     t->trap_frame   = nullptr;
     t->wait_n       = 0;
     t->sem_result   = 0;
+    t->id           = ++next_id;
 
-    void* frame_sp = TCB::seed_initial_frame(stack_top,  true);
+    void* frame_sp = TCB::seed_initial_frame(stack_top, true);
 
     t->context[CTX_RA] = (uint64)&trap_return_tail;
     t->context[CTX_SP] = (uint64)frame_sp;
 
     *handle_out = t;
-    Scheduler::put(t);
+
+    if (active_user_threads < max_user_threads) {
+        active_user_threads++;
+        Scheduler::put(t);
+    } else {
+        t->state = PENDING_QUOTA;
+        t->next  = nullptr;
+        if (!pending_head) {
+            pending_head = pending_tail = t;
+        } else {
+            pending_tail->next = t;
+            pending_tail       = t;
+        }
+    }
     return 0;
 }
 
+void TCB::admit_from_pending() {
+    if (!pending_head) return;
+    TCB* t = pending_head;
+    pending_head = t->next;
+    if (!pending_head) pending_tail = nullptr;
+    t->next  = nullptr;
+    t->state = READY;
+    active_user_threads++;
+    Scheduler::put(t);
+}
+
 void TCB::exit() {
-    TCB::running->state = FINISHED;
+    TCB* me = TCB::running;
+    me->state = FINISHED;
+
+    if (!me->is_kernel) {
+        if (active_user_threads > 0) active_user_threads--;
+        admit_from_pending();
+    }
 
     Scheduler::switch_to_next();
 
@@ -90,10 +126,22 @@ void TCB::exit() {
 }
 
 void TCB::dispatch() {
-
     if (Scheduler::empty()) return;
-
     Scheduler::switch_to_next();
+}
+
+size_t TCB::get_thread_id() {
+    size_t id = TCB::running->id;
+    Scheduler::switch_to_next();
+    return id;
+}
+
+void TCB::set_maximum_threads(int n) {
+    if (n < 1) n = 1;
+    max_user_threads = n;
+    while (active_user_threads < max_user_threads && pending_head) {
+        admit_from_pending();
+    }
 }
 
 void TCB::init() {
@@ -113,6 +161,7 @@ void TCB::init() {
     mainTCB->trap_frame   = nullptr;
     mainTCB->wait_n       = 0;
     mainTCB->sem_result   = 0;
+    mainTCB->id           = 0;
 
     running = mainTCB;
 
@@ -133,6 +182,7 @@ void TCB::init() {
     idleTCB->trap_frame   = nullptr;
     idleTCB->wait_n       = 0;
     idleTCB->sem_result   = 0;
+    idleTCB->id           = 0;
     idleTCB->context[CTX_RA] = (uint64)&TCB::body_wrapper;
     idleTCB->context[CTX_SP] = (uint64)idle_stack_top;
 

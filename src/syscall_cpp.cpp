@@ -27,6 +27,10 @@ void Thread::dispatch() { thread_dispatch(); }
 
 int Thread::sleep(time_t) { return -1; }
 
+int Thread::getId() { return getThreadId(); }
+
+int Thread::SetMaximumThreads(int n) { return setMaximumThreads(n); }
+
 Semaphore::Semaphore(unsigned init) : myHandle(nullptr) {
     sem_open(&myHandle, init);
 }

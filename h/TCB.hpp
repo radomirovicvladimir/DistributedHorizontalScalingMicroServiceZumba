@@ -3,7 +3,7 @@
 
 class TCB {
 public:
-    enum State { READY, RUNNING, BLOCKED, FINISHED };
+    enum State { READY, RUNNING, BLOCKED, FINISHED, PENDING_QUOTA };
 
     static const int CTX_RA = 0;
     static const int CTX_SP = 1;
@@ -24,6 +24,8 @@ public:
 
     int      sem_result;
 
+    size_t   id;
+
     static int create(TCB** handle_out,
                       void (*body)(void*),
                       void* arg,
@@ -33,6 +35,10 @@ public:
 
     static void dispatch();
 
+    static size_t get_thread_id();
+
+    static void set_maximum_threads(int n);
+
     static void init();
 
 private:
@@ -41,9 +47,18 @@ private:
 
     static void* seed_initial_frame(void* stack_top, bool user_mode);
 
+    static void admit_from_pending();
+
     static TCB* mainTCB;
     static TCB* idleTCB;
     static void idle_body(void*);
+
+    static size_t next_id;
+
+    static int    max_user_threads;
+    static int    active_user_threads;
+    static TCB*   pending_head;
+    static TCB*   pending_tail;
 
     friend class Scheduler;
 public:

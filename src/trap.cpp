@@ -85,6 +85,18 @@ extern "C" void c_trap_handler(TrapFrame* f) {
 
             return;
 
+        case SYS_THREAD_GET_ID:
+
+            f->a0 = (uint64)TCB::running->id;
+            f->sepc += 4;
+            Scheduler::switch_to_next();
+            return;
+
+        case SYS_SET_MAX_THREADS:
+            TCB::set_maximum_threads((int)f->a1);
+            f->a0 = 0;
+            break;
+
         case SYS_SEM_OPEN: {
 
             KSemaphore** handle = (KSemaphore**)f->a1;

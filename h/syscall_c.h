@@ -15,6 +15,8 @@ int    mem_free(void* ptr);
 int    thread_create(thread_t* handle, void(*start_routine)(void*), void* arg);
 int    thread_exit();
 void   thread_dispatch();
+int    getThreadId();
+int    setMaximumThreads(int n);
 
 int    sem_open(sem_t* handle, unsigned init);
 int    sem_close(sem_t handle);

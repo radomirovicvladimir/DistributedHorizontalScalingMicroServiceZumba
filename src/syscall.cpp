@@ -72,6 +72,10 @@ extern "C" int thread_create(thread_t* handle,
 
 extern "C" int  thread_exit()     { return (int)ecall0(SYS_THREAD_EXIT); }
 extern "C" void thread_dispatch() {          ecall0(SYS_THREAD_DISPATCH); }
+extern "C" int  getThreadId()     { return (int)ecall0(SYS_THREAD_GET_ID); }
+extern "C" int  setMaximumThreads(int n) {
+    return (int)ecall1(SYS_SET_MAX_THREADS, (uint64)n);
+}
 
 extern "C" int sem_open(sem_t* handle, unsigned init) {
     return (int)ecall2(SYS_SEM_OPEN, (uint64)handle, (uint64)init);

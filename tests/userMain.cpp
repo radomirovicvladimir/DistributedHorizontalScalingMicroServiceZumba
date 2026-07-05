@@ -21,6 +21,7 @@
 #include "SemWaitN_test.hpp"
 #include "SemClose_test.hpp"
 #include "ThreadFlood_test.hpp"
+#include "Modification_test.hpp"
 
 static void print_menu() {
     printString("=== Test menu ===\n");
@@ -35,6 +36,7 @@ static void print_menu() {
     printString("  c  SemWaitN (wait_n / signal_n atomicity)\n");
     printString("  d  SemClose (wake blocked waiters with -1)\n");
     printString("  e  ThreadFlood (mass create/exit, graveyard proof)\n");
+    printString("  m  Modification (getThreadId + SetMaximumThreads)\n");
     printString("Odaberite test: ");
 }
 
@@ -119,6 +121,9 @@ void userMain() {
             break;
         case 'e':
             ThreadFlood_test();
+            break;
+        case 'm':
+            Modification_test();
             break;
         default:
             printString("Nepoznata opcija.\n");

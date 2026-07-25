@@ -144,6 +144,22 @@ void TCB::set_maximum_threads(int n) {
     }
 }
 
+int TCB::block_running() {
+    TCB::running->state = BLOCKED;
+    return WOULD_BLOCK;
+}
+
+void TCB::wake(TCB* t, uint64 retval) {
+    if (!t) return;
+    if (t->trap_frame) {
+        uint64* frame = (uint64*)t->trap_frame;
+        frame[FRAME_A0_IDX] = retval;
+    }
+    t->sem_result = (int)(long)retval;
+    t->state = READY;
+    Scheduler::put(t);
+}
+
 void TCB::init() {
 
     const size_t tcb_blocks = (sizeof(TCB) + MEM_BLOCK_SIZE - 1) / MEM_BLOCK_SIZE;

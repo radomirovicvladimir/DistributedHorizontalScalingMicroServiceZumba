@@ -3,8 +3,6 @@
 #include "../h/Scheduler.hpp"
 #include "../h/debug.hpp"
 
-static const int FRAME_A0_IDX = 8;
-
 KSemaphore::KSemaphore(int init)
     : value(init < 0 ? 0 : init),
       closed(false),
@@ -35,14 +33,7 @@ TCB* KSemaphore::dequeue_blocked() {
 }
 
 void KSemaphore::wake(TCB* t, int retval) {
-
-    if (t->trap_frame) {
-        uint64* frame = (uint64*)t->trap_frame;
-        frame[FRAME_A0_IDX] = (uint64)(long)retval;
-    }
-    t->sem_result = retval;
-    t->state      = TCB::READY;
-    Scheduler::put(t);
+    TCB::wake(t, (uint64)(long)retval);
 }
 
 int KSemaphore::wait(unsigned n) {

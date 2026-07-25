@@ -1,22 +1,28 @@
 /*
-	ctrl+a + x
    ============================================================================
    print.cpp - per-file change snapshots for all OS1 modifications (reference)
    ============================================================================
    HOW TO READ THIS FILE:
-   - Comment-only. It records, per modification, which file each change goes in
-     and the code, as a copy-paste source for re-applying a modification.
-   - Line numbers are ANCHORS, not exact. They were captured one-modification-
-     at-a-time against a clean base; once modifications stack (or the base
-     changes) they shift. Locate code by the quoted anchor line, not by N.
-   - These snapshots assume the shared block/wake primitive is present in the
-     base kernel: TCB::block_running(), TCB::wake(TCB*, uint64),
-     TCB::FRAME_A0_IDX / TCB::WOULD_BLOCK, and class WaitQueue (h/TCB.hpp,
-     src/TCB.cpp). See MODIFICATIONS_GUIDE.md for the pattern and the 7-layer
-     syscall scaffold. Sync modifications call TCB::wake instead of rolling
-     their own wake helper.
+   - Comment-only. Records, per modification, which file each change goes in and
+     the code, as a copy-paste source for re-applying a modification.
+   - Line numbers below are captured against the CLEAN ORIGINAL base (the
+     tests/ folder is the original test suite; userMain uses the "[1-N]" prompt
+     with int test = getc()-'0'; switch(test){case 1..7}).
+   - The base already includes the shared block/wake primitive
+     (TCB::block_running / TCB::wake / class WaitQueue, and KSemaphore::wake
+     delegates to TCB::wake). See MODIFICATIONS_GUIDE.md.
+
+   NOTE: only the pairSems (2026) section below has been re-verified line-by-line
+   against the current base and a passing build. The later sections are from the
+   earlier working session and use approximate anchors.
    ============================================================================
 */
+
+
+/* ========================================================================== */
+/* ========================  MODIFICATION 2026: pairSems  =================== */
+/* =====  (semaphore pairing; VERIFIED on current base, test 8 PASS)  ======= */
+/* ========================================================================== */
 
 /* --- h/syscall_abi.hpp ---
 line 18 (#define SYS_SEM_PAIR        0x27)
@@ -26,65 +32,87 @@ line 18 (#define SYS_SEM_PAIR        0x27)
 line 27 (int    sem_pair(sem_t a, sem_t b);)
 */
 
-/* --- h/syscall_cpp.hpp ---
-line 35 (    static void pairSems(Semaphore& sem1, Semaphore& sem2);)
-*/
-
-/* --- h/Semaphore.hpp ---
-line 13 (    // Internal wait() return codes:)
-line 14 (    //   0             passed on the called semaphore (standard))
-line 15 (    //   PASSED_PAIRED passed on a paired semaphore  -> sem_wait returns 1)
-line 16 (    //   1             must block on the called semaphore (thread switched away))
-line 17 (    //   E_CLOSED/...  error)
-line 18 (    static const int PASSED_PAIRED = 2;)
-line 20 (    static const int MAX_PARTNERS = 16;)
-line 33 (    // Pair two semaphores symmetrically (idempotent, self-pairing ignored).)
-line 34 (    static void pair(KSemaphore* a, KSemaphore* b);)
-line 42 (    KSemaphore* partners[MAX_PARTNERS];)
-line 43 (    int         nPartners;)
-line 45 (    void  addPartner(KSemaphore* other);)
-*/
-
-/* --- src/Semaphore.cpp ---
-   (pairSems adds partner list + 3-phase wait to KSemaphore. Blocking/waking
-   still goes through KSemaphore's own wait/signal + KSemaphore::wake, which in
-   the post-primitive base is a one-line delegate to TCB::wake -- no change
-   needed in this section.)
-line 13 (      nPartners(0) {)
-line 14 (    for (int i = 0; i < MAX_PARTNERS; i++) partners[i] = nullptr;)
-line 15 (})
-line 51 (void KSemaphore::addPartner(KSemaphore* other) {)
-line 52 (    if (!other || other == this) return;      // no self-pairing)
-line 53 (    for (int i = 0; i < nPartners; i++) {)
-line 54 (        if (partners[i] == other) return;      // already paired (idempotent))
-line 55 (    })
-line 56 (    if (nPartners < MAX_PARTNERS) {)
-line 57 (        partners[nPartners++] = other;)
-line 58 (    })
-line 59 (})
-line 61 (void KSemaphore::pair(KSemaphore* a, KSemaphore* b) {)
-line 62 (    if (!a || !b || a == b) return;)
-line 63 (    // Symmetric: whichever is waited on must see the other as a partner.)
-line 64 (    a->addPartner(b);)
-line 65 (    b->addPartner(a);)
-line 66 (})
-line 72 (    // Phase 1: try to pass on the called semaphore itself (standard).)
-line 78 (    // Phase 2: only if paired, try to pass on some paired semaphore.)
-line 79 (    for (int i = 0; i < nPartners; i++) {)
-line 80 (        KSemaphore* p = partners[i];)
-line 81 (        if (!p || p->closed) continue;         // closed partner cannot grant passage)
-line 82 (        if ((int)n <= p->value) {)
-line 83 (            p->value -= (int)n;                // update the partner in the standard way)
-line 84 (            return PASSED_PAIRED;              // sem_wait must return 1)
-line 85 (        })
-line 86 (    })
-line 88 (    // Phase 3: block on the called semaphore (standard).)
-*/
-
 /* --- src/syscall.cpp ---
 line 98  (extern "C" int sem_pair(sem_t a, sem_t b) {)
 line 99  (    return (int)ecall2(SYS_SEM_PAIR, (uint64)a, (uint64)b);)
 line 100 (})
+*/
+
+/* --- h/Semaphore.hpp   (added to class KSemaphore) ---
+line 13 (    static const int PASSED_PAIRED = 2;)
+line 14 (    static const int MAX_PARTNERS  = 16;)
+line 27 (    static void pair(KSemaphore* a, KSemaphore* b);)
+line 35 (    KSemaphore* partners[MAX_PARTNERS];)
+line 36 (    int         nPartners;)
+line 38 (    void  addPartner(KSemaphore* other);)
+*/
+
+/* --- src/Semaphore.cpp ---
+constructor initializer (after blocked_tail(nullptr)):
+line 11 (      nPartners(0) {)
+line 12 (    for (int i = 0; i < MAX_PARTNERS; i++) partners[i] = nullptr;)
+
+line 42 (void KSemaphore::addPartner(KSemaphore* other) {)
+line 43 (    if (!other || other == this) return;)
+line 44 (    for (int i = 0; i < nPartners; i++) {)
+line 45 (        if (partners[i] == other) return;)
+line 46 (    })
+line 47 (    if (nPartners < MAX_PARTNERS) {)
+line 48 (        partners[nPartners++] = other;)
+line 49 (    })
+line 50 (})
+
+line 52 (void KSemaphore::pair(KSemaphore* a, KSemaphore* b) {)
+line 53 (    if (!a || !b || a == b) return;)
+line 54 (    a->addPartner(b);)
+line 55 (    b->addPartner(a);)
+line 56 (})
+
+3-phase wait (replaces the original single-phase wait body):
+line 58 (int KSemaphore::wait(unsigned n) {)
+line 59 (    if (closed) return E_CLOSED;)
+line 60 (    if (n == 0) return 0;)
+line 62 (    // Phase 1: pass on the called semaphore itself.)
+line 63 (    if ((int)n <= value) {)
+line 64 (        value -= (int)n;)
+line 65 (        return 0;)
+line 66 (    })
+line 68 (    // Phase 2: if paired, try to pass on some partner.)
+line 69 (    for (int i = 0; i < nPartners; i++) {)
+line 70 (        KSemaphore* p = partners[i];)
+line 71 (        if (!p || p->closed) continue;)
+line 72 (        if ((int)n <= p->value) {)
+line 73 (            p->value -= (int)n;)
+line 74 (            return PASSED_PAIRED;)
+line 75 (        })
+line 76 (    })
+line 78 (    // Phase 3: block on the called semaphore.)
+line 79 (    TCB::running->wait_n = n;)
+line 80 (    TCB::running->state  = TCB::BLOCKED;)
+line 81 (    enqueue_blocked(TCB::running);)
+line 82 (    return 1;)
+line 83 (})
+*/
+
+/* --- src/trap.cpp   (inside SYS_SEM_WAIT/WAIT_N case, after the r==1 block) ---
+line 135 (            if (r == KSemaphore::PASSED_PAIRED) {)
+line 136 (                f->a0 = 1;)
+line 137 (                break;)
+line 138 (            })
+
+new case (after SYS_SEM_SIGNAL/SIGNAL_N case):
+line 153 (        case SYS_SEM_PAIR: {)
+line 154 (            KSemaphore* a = (KSemaphore*)f->a1;)
+line 155 (            KSemaphore* b = (KSemaphore*)f->a2;)
+line 156 (            if (!a || !b) { f->a0 = (uint64)-1; break; })
+line 157 (            KSemaphore::pair(a, b);)
+line 158 (            f->a0 = 0;)
+line 159 (            break;)
+line 160 (        })
+*/
+
+/* --- h/syscall_cpp.hpp   (added to class Semaphore) ---
+line 35 (    static void pairSems(Semaphore& sem1, Semaphore& sem2);)
 */
 
 /* --- src/syscall_cpp.cpp ---
@@ -93,120 +121,103 @@ line 46 (    sem_pair(sem1.myHandle, sem2.myHandle);)
 line 47 (})
 */
 
-/* --- src/trap.cpp ---
-line 135 (            if (r == KSemaphore::PASSED_PAIRED) {)
-line 136 (                // Passed on a paired semaphore: thread did NOT block,)
-line 137 (                // wait returns 1 to the caller.)
-line 138 (                f->a0 = 1;)
-line 139 (                break;)
-line 140 (            })
-line 155 (        case SYS_SEM_PAIR: {)
-line 156 (            KSemaphore* a = (KSemaphore*)f->a1;)
-line 157 (            KSemaphore* b = (KSemaphore*)f->a2;)
-line 158 (            if (!a || !b) { f->a0 = (uint64)-1; break; })
-line 159 (            KSemaphore::pair(a, b);)
-line 160 (            f->a0 = 0;)
-line 161 (            break;)
-line 162 (        })
+/* --- tests/userMain.cpp   (deltas vs the ORIGINAL userMain) ---
+In the LEVEL_3 include block:
+line 22 (// TEST 8 (Modifikacija, uparivanje semafora pairSems))
+line 23 (#include "SemPair_test.hpp")
+
+Prompt (widen range):
+line 36 (    printString("Unesite broj testa? [1-8]\n");)
+
+Level-3 gate (extend the existing test 3-4 check):
+line 47 (    if ((test >= 3 && test <= 4) || test == 8) {)
+
+New case in switch(test):
+line 105 (        case 8:)
+line 106 (#if LEVEL_3_IMPLEMENTED == 1)
+line 107 (            SemPair_test();)
+line 108 (            printString("TEST 8 (Modifikacija, uparivanje semafora pairSems)\n");)
+line 109 (#endif)
+line 110 (            break;)
 */
 
-/* --- tests/userMain.cpp   (deltas vs the ORIGINAL userMain: prompt "[1-7]",
-   int test = getc()-'0'; getc();  switch(test){ case 1..7; default }) ---
-   Add near the other test includes:
-     #include "SemPair_test.hpp"
-   Optional level gate (test 8 is a zadatak-3 feature) alongside the existing
-   `if (test >= 3 && test <= 4) { ...LEVEL_3... }`:
-     if ((test >= 3 && test <= 4) || test == 8) { ...LEVEL_3 check... }
-   Add a case to the switch (single digit 8 selects fine via getc()-'0'):
-     case 8:
-     #if LEVEL_3_IMPLEMENTED == 1
-                 SemPair_test();
-                 printString("TEST 8 (Modifikacija, uparivanje semafora pairSems)\n");
-     #endif
-                 break;
-   (No menu-string / print_menu edits needed: the original has no menu list,
-   just the "[1-7]" prompt. Update the prompt text to [1-8] if desired.)
-*/
-
-/* --- tests/SemPair_test.hpp --- (NEW FILE, entirely for this modification)
+/* --- tests/SemPair_test.hpp --- (NEW FILE)
 line 1 (#ifndef _SEMPAIR_TEST_HPP)
 line 2 (#define _SEMPAIR_TEST_HPP)
 line 4 (void SemPair_test();)
 line 6 (#endif)
 */
 
-/* --- tests/SemPair_test.cpp --- (NEW FILE, entirely for this modification)
+/* --- tests/SemPair_test.cpp --- (NEW FILE)
 line 1  (#include "../h/syscall_cpp.hpp")
-line 2  (#include "printing.hpp")
-line 3  (#include "SemPair_test.hpp")
-line 18 (#define NUM_WORKERS 5)
-line 19 (#define ITERATIONS  5)
-line 20 (#define DISPATCH_ITERS 1000)
-line 22 (static Semaphore* mainSem;)
-line 23 (static Semaphore* done;)
-line 25 (static volatile int pairedPassTotal;   // ukupno prolazaka na uparenim semaforima)
-line 27 (class WorkerThread : public Thread {)
-line 28 (public:)
-line 29 (    WorkerThread(Semaphore* ownSem) : Thread(), sem(ownSem) {})
-line 31 (    void run() override {)
-line 32 (        int id = Thread::getId();)
-line 33 (        for (int num = 1; num <= ITERATIONS; num++) {)
-line 34 (            printInt(id);)
-line 35 (            printString(" wait iteracija ");)
-line 36 (            printInt(num);)
-line 37 (            printString("!\n");)
-line 39 (            int r = sem->wait();)
-line 41 (            if (r == 1) {)
-line 42 (                // prosla na uparenom semaforu)
-line 43 (                printInt(id);)
-line 44 (                printString(" prosla semafor-iteracija ");)
-line 45 (                printInt(num);)
-line 46 (                printString("!\n");)
-line 47 (                pairedPassTotal++;)
-line 48 (            } else {)
-line 49 (                // prosla na svom (pozvanom) semaforu)
-line 50 (                printInt(id);)
-line 51 (                printString(" prosla semafor iteracija ");)
-line 52 (                printInt(num);)
-line 53 (                printString("!\n");)
-line 54 (            })
-line 56 (            // 20p: radi u 1000 iteracija dispatch)
-line 57 (            for (int i = 0; i < DISPATCH_ITERS; i++) {)
-line 58 (                Thread::dispatch();)
-line 59 (            })
-line 60 (        })
-line 61 (        done->signal();)
-line 62 (    })
-line 64 (private:)
-line 65 (    Semaphore* sem;)
-line 66 (};)
-line 68 (void SemPair_test() {)
-line 69 (    printString("--- SemPair (Modifikacija: pairSems) ---\n");)
-line 71 (    pairedPassTotal = 0;)
-line 73 (    mainSem = new Semaphore(100);)
-line 74 (    done    = new Semaphore(0);)
-line 76 (    Semaphore* workers[NUM_WORKERS];)
-line 77 (    for (int i = 0; i < NUM_WORKERS; i++) {)
-line 78 (        workers[i] = new Semaphore((unsigned)(i + 1));   // 1,2,3,4,5)
-line 79 (        Semaphore::pairSems(*mainSem, *workers[i]);       // upari glavni sa svakim)
-line 80 (    })
-line 82 (    WorkerThread* threads[NUM_WORKERS];)
-line 83 (    for (int i = 0; i < NUM_WORKERS; i++) {)
-line 84 (        threads[i] = new WorkerThread(workers[i]);)
-line 85 (        threads[i]->start();)
-line 86 (    })
-line 89 (    for (int i = 0; i < NUM_WORKERS; i++) {)
-line 90 (        done->wait();)
-line 91 (    })
-line 93 (    printString("Ukupno prolazaka na uparenim semaforima: ");)
-line 94 (    printInt(pairedPassTotal);)
-line 95 (    printString("\n");)
-line 97 (    for (int i = 0; i < NUM_WORKERS; i++) delete threads[i];)
-line 98 (    for (int i = 0; i < NUM_WORKERS; i++) delete workers[i];)
-line 99 (    delete done;)
-line 100 (    delete mainSem;)
-line 102 (    printString("SemPair: PASS\n");)
-line 103 (})
+line 3  (#include "printing.hpp")
+line 5  (#include "SemPair_test.hpp")
+line 7  (#define NUM_WORKERS 5)
+line 8  (#define ITERATIONS  5)
+line 9  (#define DISPATCH_ITERS 1000)
+line 11 (static Semaphore* mainSem;)
+line 12 (static Semaphore* done;)
+line 14 (static volatile int pairedPassTotal;)
+line 16 (class WorkerThread : public Thread {)
+line 17 (public:)
+line 18 (    WorkerThread(Semaphore* ownSem) : Thread(), sem(ownSem) {})
+line 20 (    void run() override {)
+line 21 (        int id = Thread::getId();)
+line 22 (        for (int num = 1; num <= ITERATIONS; num++) {)
+line 23 (            printInt(id);)
+line 24 (            printString(" wait iteracija ");)
+line 25 (            printInt(num);)
+line 26 (            printString("!\n");)
+line 28 (            int r = sem->wait();)
+line 30 (            if (r == 1) {)
+line 31 (                printInt(id);)
+line 32 (                printString(" prosla semafor-iteracija ");)
+line 33 (                printInt(num);)
+line 34 (                printString("!\n");)
+line 35 (                pairedPassTotal++;)
+line 36 (            } else {)
+line 37 (                printInt(id);)
+line 38 (                printString(" prosla semafor iteracija ");)
+line 39 (                printInt(num);)
+line 40 (                printString("!\n");)
+line 41 (            })
+line 43 (            for (int i = 0; i < DISPATCH_ITERS; i++) {)
+line 44 (                Thread::dispatch();)
+line 45 (            })
+line 46 (        })
+line 47 (        done->signal();)
+line 48 (    })
+line 50 (private:)
+line 51 (    Semaphore* sem;)
+line 52 (};)
+line 54 (void SemPair_test() {)
+line 55 (    printString("--- SemPair (Modifikacija: pairSems) ---\n");)
+line 57 (    pairedPassTotal = 0;)
+line 59 (    mainSem = new Semaphore(100);)
+line 60 (    done    = new Semaphore(0);)
+line 62 (    Semaphore* workers[NUM_WORKERS];)
+line 63 (    for (int i = 0; i < NUM_WORKERS; i++) {)
+line 64 (        workers[i] = new Semaphore((unsigned)(i + 1));)
+line 65 (        Semaphore::pairSems(*mainSem, *workers[i]);)
+line 66 (    })
+line 68 (    WorkerThread* threads[NUM_WORKERS];)
+line 69 (    for (int i = 0; i < NUM_WORKERS; i++) {)
+line 70 (        threads[i] = new WorkerThread(workers[i]);)
+line 71 (        threads[i]->start();)
+line 72 (    })
+line 74 (    for (int i = 0; i < NUM_WORKERS; i++) {)
+line 75 (        done->wait();)
+line 76 (    })
+line 78 (    printString("Ukupno prolazaka na uparenim semaforima: ");)
+line 79 (    printInt(pairedPassTotal);)
+line 80 (    printString("\n");)
+line 82 (    for (int i = 0; i < NUM_WORKERS; i++) delete threads[i];)
+line 83 (    for (int i = 0; i < NUM_WORKERS; i++) delete workers[i];)
+line 84 (    delete done;)
+line 85 (    delete mainSem;)
+line 87 (    if (pairedPassTotal == 10) printString("SemPair: PASS\n");)
+line 88 (    else                       printString("SemPair: FAIL\n");)
+line 89 (})
 */
 
 

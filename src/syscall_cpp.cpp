@@ -41,6 +41,8 @@ Semaphore::~Semaphore() {
 
 int Semaphore::wait()   { return sem_wait(myHandle); }
 int Semaphore::signal() { return sem_signal(myHandle); }
+int Semaphore::wait_n(int n) { return sem_wait_n(myHandle, n); }
+int Semaphore::signal_n(int n) { return sem_signal_n(myHandle, n); }
 
 PeriodicThread::PeriodicThread(time_t p) : Thread(), period(p) {}
 void PeriodicThread::terminate() { thread_exit(); }

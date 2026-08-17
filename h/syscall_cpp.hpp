@@ -32,6 +32,8 @@ public:
     virtual ~Semaphore();
     int wait();
     int signal();
+    int wait_n(int n);
+    int signal_n(int n);
 private:
     sem_t myHandle;
 };

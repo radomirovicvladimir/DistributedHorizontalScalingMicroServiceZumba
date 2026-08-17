@@ -1,4 +1,5 @@
 #include "printing.hpp"
+#include "TestMod.hpp"
 
 #define LEVEL_1_IMPLEMENTED 0
 #define LEVEL_2_IMPLEMENTED 1
@@ -100,6 +101,11 @@ void userMain() {
             printString("TEST 7 (zadatak 2., testiranje da li se korisnicki kod izvrsava u korisnickom rezimu)\n");
 #endif
             break;
+        case 8:
+            testMod();
+            printString("Zavrseno!");
+            break;
+
         default:
             printString("Niste uneli odgovarajuci broj za test\n");
     }

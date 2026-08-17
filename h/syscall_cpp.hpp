@@ -13,6 +13,8 @@ public:
     int start();
     static void dispatch();
     static int sleep(time_t);
+    static int getId();
+    static int SetMaximumThreads(int num_of_threads);
 protected:
     Thread();
     virtual void run() {}
@@ -30,6 +32,8 @@ public:
     virtual ~Semaphore();
     int wait();
     int signal();
+    int wait_n(int n);
+    int signal_n(int n);
 private:
     sem_t myHandle;
 };

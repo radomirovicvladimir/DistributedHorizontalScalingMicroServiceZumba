@@ -6,6 +6,8 @@
 #define SYS_THREAD_CREATE   0x11
 #define SYS_THREAD_EXIT     0x12
 #define SYS_THREAD_DISPATCH 0x13
+#define SYS_THREAD_GET_ID   0x14
+#define SYS_SET_MAX_THREADS 0x15
 
 #define SYS_SEM_OPEN        0x21
 #define SYS_SEM_CLOSE       0x22
